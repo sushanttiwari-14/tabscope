@@ -1,12 +1,28 @@
 {
- "manifest_version":3,"name":"TabScope","version":"0.1.0","description":"Find the passage you remember in your open tabs. Private, local, keyboard first.",
- "minimum_chrome_version":"120","incognito":"not_allowed",
- "permissions":["tabs","scripting","storage","activeTab"],
- "optional_host_permissions":["http://*/*","https://*/*"],
- "background":{"service_worker":"background.js","type":"module"},
- "action":{"default_title":"Open TabScope"},
- "commands":{"open-search":{"suggested_key":{"default":"Ctrl+Shift+K","mac":"Command+Shift+K"},"description":"Search open tabs"}},
- "options_page":"palette.html",
- "web_accessible_resources":[{"resources":["palette.html","palette.js","palette.css"],"matches":["http://*/*","https://*/*"]}],
- "content_security_policy":{"extension_pages":"script-src 'self'; object-src 'none'; base-uri 'none'"}
+  "manifest_version": 3,
+  "name": "TabScope",
+  "version": "0.1.0",
+  "description": "Find the passage you remember in your open tabs. Private, local, keyboard first.",
+  "minimum_chrome_version": "120",
+  "incognito": "not_allowed",
+  "permissions": ["tabs", "scripting", "storage", "activeTab"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Open TabScope" },
+  "commands": {
+    "open-search": {
+      "suggested_key": { "default": "Ctrl+Shift+K", "mac": "Command+Shift+K" },
+      "description": "Search open tabs"
+    }
+  },
+  "options_page": "palette.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["palette.html", "palette.js", "palette.css"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  }
 }

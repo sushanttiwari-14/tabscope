@@ -1,1 +1,1 @@
-export const BRAND = 'TabScope';
+export const BRAND = "TabScope";
