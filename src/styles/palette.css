@@ -30,13 +30,13 @@ select {
 }
 button {
   border: var(--hairline) solid var(--line);
-  border-radius: var(--row-radius);
+  border-radius: var(--control-radius);
   background: var(--surface);
   padding: var(--s1) var(--s3);
   min-height: var(--s8);
 }
 button:hover {
-  background: var(--selected);
+  background: var(--hover);
 }
 button:focus-visible,
 input:focus-visible,
@@ -76,9 +76,15 @@ body:not(.overlay) dialog {
   border-bottom: var(--hairline) solid var(--line);
 }
 .logo {
-  color: var(--accent);
-  font-size: var(--input);
-  font-weight: var(--strong);
+  width: var(--s5);
+  height: var(--s5);
+  flex: none;
+  color: var(--muted);
+}
+.logo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .field {
   flex: 1;
@@ -88,6 +94,14 @@ body:not(.overlay) dialog {
   background: transparent;
   font: var(--normal) var(--input)/var(--input-lh) var(--font);
   letter-spacing: var(--input-tracking);
+  height: calc(var(--s8) + var(--s1));
+  border-radius: var(--control-radius);
+}
+.field:focus-visible {
+  outline: none;
+}
+.top:has(.field:focus-visible) {
+  box-shadow: inset 0 calc(-1 * var(--focus)) 0 var(--accent);
 }
 .field::placeholder {
   color: var(--muted);
@@ -95,23 +109,29 @@ body:not(.overlay) dialog {
 kbd {
   font: var(--normal) var(--small)/var(--small-lh) var(--mono);
   color: var(--muted);
-  border: var(--hairline) solid var(--line);
-  border-radius: var(--s1);
+  border: 0;
+  border-radius: var(--key-radius);
+  background: var(--key-bg);
   padding: 0 var(--s1);
 }
 .close {
   border: 0;
   background: transparent;
-  padding: var(--s1);
-  min-height: var(--s8);
+  padding: var(--s1) var(--s2);
+  min-width: var(--s8);
+  height: var(--s8);
+  border-radius: var(--control-radius);
+}
+.close kbd {
+  background: transparent;
 }
 .list {
   list-style: none;
   margin: 0;
-  padding: var(--s2);
+  padding: var(--s3);
   overflow-y: auto;
   max-height: 50vh;
-  scroll-padding: var(--s2);
+  scroll-padding: var(--s3);
 }
 .row {
   display: flex;
@@ -124,16 +144,35 @@ kbd {
 }
 .row[aria-selected="true"] {
   background: var(--selected);
-  border-color: var(--line);
+  border-color: var(--selected-line);
+}
+.row + .row {
+  margin-top: var(--s1);
+}
+.row-action {
+  width: var(--s6);
+  flex: none;
+  align-self: center;
+  text-align: right;
+  color: var(--accent);
+  font: var(--normal) var(--title)/var(--lh) var(--mono);
+  opacity: 0;
+}
+.row[aria-selected="true"] .row-action {
+  opacity: 1;
+}
+.row[aria-selected="true"] .site {
+  color: var(--accent);
+  background: var(--icon-selected);
 }
 .site {
   flex: none;
   width: var(--icon);
   height: var(--icon);
-  border-radius: var(--row-radius);
+  border-radius: var(--icon-radius);
   display: grid;
   place-items: center;
-  background: var(--canvas);
+  background: var(--icon-bg);
   color: var(--muted);
   font-weight: var(--strong);
   margin-top: var(--s1);
@@ -153,15 +192,15 @@ kbd {
 }
 .meta {
   color: var(--muted);
-  font-size: var(--small);
+  font-size: var(--meta);
   line-height: var(--small-lh);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin: var(--s1) 0;
+  margin: var(--s1) 0 0;
 }
 .snippet {
-  margin: 0;
+  margin: var(--s2) 0 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -178,7 +217,8 @@ footer {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: var(--s3) var(--s5);
+  padding: var(--s2) var(--s4);
+  background: var(--footer);
   font-size: var(--small);
   line-height: var(--small-lh);
   color: var(--muted);
@@ -189,9 +229,21 @@ footer {
 }
 .quiet {
   border: 0;
-  padding: var(--s1);
+  background: transparent;
+  padding: var(--s1) var(--s2);
   color: var(--muted);
   font-size: var(--small);
+}
+.quiet:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.list::-webkit-scrollbar {
+  width: var(--s1);
+}
+.list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: var(--radius);
 }
 .state {
   padding: var(--s8) var(--s5);
@@ -230,7 +282,7 @@ footer {
 .settings select {
   width: 100%;
   border: var(--hairline) solid var(--line);
-  border-radius: var(--row-radius);
+  border-radius: var(--control-radius);
   background: var(--canvas);
   padding: var(--s2) var(--s3);
 }

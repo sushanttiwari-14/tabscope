@@ -36,10 +36,27 @@ async function request<T>(message: Record<string, unknown>): Promise<T> {
 const dialog = el("dialog");
 dialog.setAttribute("aria-label", BRAND);
 const top = el("div", "top");
-const logo = el("span", "logo", "◉");
+const logo = el("span", "logo");
+const searchGlyph = document.createElementNS(
+  "http://www.w3.org/2000/svg",
+  "svg",
+);
+searchGlyph.setAttribute("viewBox", "0 0 24 24");
+searchGlyph.setAttribute("fill", "none");
+searchGlyph.setAttribute("stroke", "currentColor");
+searchGlyph.setAttribute("stroke-width", "1.7");
+searchGlyph.setAttribute("stroke-linecap", "round");
+const lens = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+lens.setAttribute("cx", "10.5");
+lens.setAttribute("cy", "10.5");
+lens.setAttribute("r", "6.5");
+const handle = document.createElementNS("http://www.w3.org/2000/svg", "path");
+handle.setAttribute("d", "m15.5 15.5 4.5 4.5");
+searchGlyph.append(lens, handle);
+logo.append(searchGlyph);
 logo.setAttribute("aria-hidden", "true");
 const input = el("input", "field");
-input.placeholder = "Search anything in your tabs…";
+input.placeholder = "Search your open tabs…";
 input.maxLength = 500;
 input.setAttribute("aria-label", "Search open tabs");
 input.setAttribute("role", "combobox");
@@ -226,6 +243,15 @@ async function activate() {
 function render(response: SearchResponse) {
   hits = response.hits;
   list.replaceChildren();
+  const hasQuery = tokenize(input.value).length > 0;
+  const stateLabels: Record<Hit["state"], string> = {
+    content: "",
+    "metadata-only": "Title & URL",
+    indexing: "Indexing",
+    unavailable: "Unavailable",
+    stale: "Stale text",
+    excluded: "Excluded",
+  };
   for (const [i, h] of hits.entries()) {
     const row = el("li", "row");
     row.id = "hit-" + h.id;
@@ -240,17 +266,32 @@ function render(response: SearchResponse) {
     icon.setAttribute("aria-hidden", "true");
     const copy = el("div", "copy");
     const title = el("div", "title");
+    title.title = h.title;
     title.append(highlighted(h.title, input.value));
-    const label = h.state === "content" ? "Content" : h.state.replace("-", " ");
+    const label = stateLabels[h.state];
     const meta = el(
       "div",
       "meta",
-      host + " · " + label + (h.truncated ? " · text capped" : ""),
+      [
+        host,
+        label,
+        h.truncated && (h.state === "content" || h.state === "stale")
+          ? "Partial text"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
     );
-    const snippet = el("p", "snippet");
-    snippet.append(highlighted(h.snippet, input.value));
-    copy.append(title, meta, snippet);
-    row.append(icon, copy);
+    meta.title = h.url;
+    copy.append(title, meta);
+    if (hasQuery && h.snippet) {
+      const snippet = el("p", "snippet");
+      snippet.append(highlighted(h.snippet, input.value));
+      copy.append(snippet);
+    }
+    const actionHint = el("span", "row-action", "↵");
+    actionHint.setAttribute("aria-hidden", "true");
+    row.append(icon, copy, actionHint);
     row.onpointermove = () => {
       if (selected !== i) select(i);
     };
@@ -277,7 +318,7 @@ function render(response: SearchResponse) {
   );
   coverage.textContent = response.paused
     ? "Indexing paused"
-    : `${response.searchable} of ${response.total} content-searchable${response.indexing ? " · Indexing…" : ""}`;
+    : `Page text · ${response.searchable} of ${response.total} tabs${response.indexing ? " · Indexing…" : ""}`;
   live.textContent = `${hits.length} results. ${coverage.textContent}`;
   document.documentElement.dataset.theme = response.theme;
   select(Math.min(selected, hits.length - 1));

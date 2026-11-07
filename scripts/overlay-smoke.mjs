@@ -123,6 +123,15 @@ try {
   // The same backdrop action also dismisses the ordinary search view.
   await cdp.send("Extensions.triggerAction", { id, targetId: target });
   await frame.getByRole("combobox").waitFor();
+  // Let Chrome commit the new iframe's hit-test region before clicking its backdrop.
+  await frame
+    .getByRole("combobox")
+    .evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
   await page.mouse.click(24, 24);
   await page.locator("#tabscope-root").waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => document.activeElement.id), "prior");
@@ -134,6 +143,136 @@ try {
   await page.locator("#tabscope-root").waitFor({ state: "detached" });
   assert.equal(page.url(), priorURL);
   await page.screenshot({ path: path.join(evidence, "page-restored.png") });
+  if (process.env.TABSCOPE_UI_PREVIEW === "1") {
+    // Visual fixtures only: exercise the real renderer without granting site access.
+    // Functional checks above use real worker responses. No fixtures ship in src/.
+    await cdp.send("Extensions.triggerAction", { id, targetId: target });
+    await frame.getByRole("combobox").waitFor();
+    const preview = page
+      .frames()
+      .find((f) => f.url() === `chrome-extension://${id}/overlay.html`);
+    await preview.evaluate(() => {
+      const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+      const fixtures = [
+        {
+          id: 901,
+          title: "Design systems — a practical guide",
+          url: "https://studio.example.test/design-systems",
+          state: "content",
+          snippet:
+            "A thoughtful design system starts with a few clear decisions. Keep typography consistent, leave room for the content, and make every interaction predictable.",
+        },
+        {
+          id: 902,
+          title: "Notes on quiet interfaces",
+          url: "https://journal.example.test/quiet-interfaces",
+          state: "content",
+          snippet:
+            "Good interface design makes the next step feel obvious. Reduce visual noise, use gentle contrast, and let the details support the task.",
+        },
+        {
+          id: 903,
+          title: "The shape of a useful tool",
+          url: "https://notes.example.test/useful-tools",
+          state: "content",
+          snippet:
+            "The best design often removes something. A focused tool should feel familiar from the first interaction and get out of the way when the work is done.",
+        },
+        {
+          id: 904,
+          title: "A small reading collection",
+          url: "https://library.example.test/collection",
+          state: "metadata-only",
+          snippet: "",
+        },
+        {
+          id: 905,
+          title: "Workspace references",
+          url: "https://workspace.example.test/references",
+          state: "content",
+          snippet:
+            "A collected set of observations on typography, alignment and everyday design decisions.",
+        },
+      ];
+      chrome.runtime.sendMessage = async (message) =>
+        message.type === "search"
+          ? {
+              hits: message.query?.trim()
+                ? fixtures.filter((h) =>
+                    (h.title + " " + h.url + " " + h.snippet)
+                      .toLowerCase()
+                      .includes(message.query.trim().toLowerCase()),
+                  )
+                : fixtures,
+              total: 5,
+              searchable: 4,
+              indexing: 0,
+              paused: false,
+              theme: "system",
+            }
+          : send(message);
+    });
+    const settlePreview = async () => {
+      await preview.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          ),
+      );
+      await page.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          ),
+      );
+    };
+    for (const theme of ["light", "dark"]) {
+      await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+      await frame.getByRole("combobox").fill(" ");
+      await frame.getByRole("combobox").fill("");
+      await frame.getByRole("option").nth(4).waitFor();
+      await frame.locator(".snippet").first().waitFor({ state: "detached" });
+      await preview.waitForFunction(
+        (theme) =>
+          matchMedia("(prefers-color-scheme: dark)").matches ===
+          (theme === "dark"),
+        theme,
+      );
+      await settlePreview();
+      assert.equal(await page.locator("#tabscope-root").count(), 1);
+      console.log(
+        "Preview",
+        theme,
+        "empty",
+        await preview.evaluate(() => ({
+          value: document.querySelector("input").value,
+          surface: getComputedStyle(document.querySelector("dialog"))
+            .backgroundColor,
+          dialogs: document.querySelectorAll("dialog").length,
+          snippets: document.querySelectorAll(".snippet").length,
+        })),
+      );
+      await page.screenshot({
+        path: path.join(evidence, `minimal-${theme}-empty.png`),
+      });
+      await frame.getByRole("combobox").fill("design");
+      await frame.locator(".snippet").first().waitFor();
+      await settlePreview();
+      await page.screenshot({
+        path: path.join(evidence, `minimal-${theme}-search.png`),
+      });
+    }
+    await page.setViewportSize({ width: 390, height: 760 });
+    await settlePreview();
+    await page.screenshot({ path: path.join(evidence, "minimal-narrow.png") });
+    assert.equal(
+      await preview.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+    );
+    await page.setViewportSize({ width: 1100, height: 850 });
+  }
   await writeFile(
     path.join(evidence, "overlay-result.json"),
     JSON.stringify(

@@ -29,3 +29,5 @@ First-open access: show a one-time inline explanation with an all-websites butto
 Shortcut defaults apply to new installs only; existing assignments are managed through Chrome’s shortcuts UI. Settings displays the actual registered assignment. Invocation is scoped to Chrome being focused. macOS input-source shortcuts can take priority; no OS shortcuts are disabled by TabScope.
 
 Overlay dismissal: a primary pointer press and release on the backdrop closes search or Settings, restores previous page focus, and consumes the gesture. Inside clicks and dragging from inside to outside do not dismiss. Escape remains available. This is page-backdrop behavior, not an OS-wide outside-window listener.
+
+Opening the palette uses compact title/site rows. Keyword queries reveal two-line snippets from the indexed text. Content rows omit redundant Content labels; Partial text indicates capped body content, Title & URL marks metadata-only records, and the footer reports Page text · X of Y tabs. Long titles and URLs have native hover tooltips. Selected rows include a return-key hint alongside aria-selected.
