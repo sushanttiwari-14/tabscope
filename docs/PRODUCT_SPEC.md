@@ -6,7 +6,7 @@ Chrome desktop, current profile, normal windows: command/icon → immediate inpu
 
 ## Interaction
 
-Default proposed shortcut Ctrl+Shift+K (Command+Shift+K on Mac); assignment may conflict and is not guaranteed. Change at chrome://extensions/shortcuts. Reinvoke refocuses, never duplicates. Arrow keys select, Enter jumps, Escape closes/restores focus. IME and normal editing remain native. Newest request alone may render. Settings remains within palette. Restricted pages use an extension-owned popup window.
+Suggested shortcut Control+Space on Mac (manifest MacCtrl+Space), Ctrl+Shift+Space on Windows/default; assignment may conflict and is not guaranteed. Change at chrome://extensions/shortcuts. Reinvoke refocuses, never duplicates. Arrow keys select, Enter jumps, Escape closes/restores focus. IME and normal editing remain native. Newest request alone may render. Settings remains within palette. Restricted pages use an extension-owned popup window.
 
 ## Support
 
@@ -25,3 +25,5 @@ Top-level rendered HTTP(S) DOM text, including below viewport; scripts/styles/fo
 Search Latin-space-delimited words (Unicode letters/numbers supported). Case/diacritics folded; prefixes accepted. No stemming or language segmentation for CJK. All terms required across fields. Body weight 2, title 3, URL 1; phrase match body boost 1.5; no additional distance/proximity boost; deterministic tab ID tie. Snippet uses actual indexed text around first query occurrence, emphasizing all matched terms. Navigation uses excerpt context, tolerates split nodes, and reports if passage changed.
 
 First-open access: show a one-time inline explanation with an all-websites button and metadata-only alternative. Request access only on button activation. Remember grant, deny, or skip; never repeatedly request new-site permission after an all-websites grant. Existing all-site grants bypass the explanation; later changes belong in Settings.
+
+Shortcut defaults apply to new installs only; existing assignments are managed through Chrome’s shortcuts UI. Settings displays the actual registered assignment. Invocation is scoped to Chrome being focused. macOS input-source shortcuts can take priority; no OS shortcuts are disabled by TabScope.

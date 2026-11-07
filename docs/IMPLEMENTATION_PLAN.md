@@ -11,4 +11,6 @@
 
 Dependencies follow this order. Each feature checkpoint runs relevant checks; final check runs typecheck, lint, tests, build. Browser checks use isolated fixtures/profile; never load-test existing user tabs. Document any inaccessible environments or unperformed checks.
 
-Open release gates: observe native command invocation on a physical keyboard, VoiceOver/screen-reader pass, actual browser 200% zoom and broader real-site compatibility. Draft PR intentionally remains draft until these are verified.
+Open release gates: VoiceOver/screen-reader pass, actual browser 200% zoom and broader real-site compatibility. Draft PR intentionally remains draft until these are verified.
+
+Native Mac Control+Space invocation, repeated refocus, and Escape closure are now verified through native Chrome controls. Windows/default suggestion is Ctrl+Shift+Space; Windows runtime and other release gates remain open.

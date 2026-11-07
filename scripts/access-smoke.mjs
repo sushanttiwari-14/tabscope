@@ -27,6 +27,11 @@ try {
   const page = await context.newPage();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`chrome-extension://${id}/palette.html`);
+  const command = await page.evaluate(async () =>
+    (await chrome.commands.getAll()).find((c) => c.name === "open-search"),
+  );
+  assert.ok(command?.shortcut && /space/i.test(command.shortcut));
+  console.log("Registered shortcut:", command.shortcut);
   const prompt = page.getByRole("region", { name: "Search inside your tabs" });
   await prompt.waitFor();
   assert.equal(
@@ -68,6 +73,7 @@ try {
   await page
     .getByRole("button", { name: "Allow all websites", exact: true })
     .waitFor();
+  await page.getByText(/Current shortcut:.*Space/).waitFor();
   console.log(
     "PASS: fresh-profile explanation, no automatic grant, metadata-only dismissal, restart persistence, and Settings access",
   );

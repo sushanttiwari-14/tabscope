@@ -395,13 +395,16 @@ async function showSettings() {
         coverage.textContent = "Indexing…";
       }),
     );
+    const shortcut = (await chrome.commands.getAll()).find(
+      (command) => command.name === "open-search",
+    )?.shortcut;
     settings.append(
       data,
       el("label", "", "Keyboard shortcut"),
       el(
         "p",
         "",
-        "Suggested: Ctrl+Shift+K (⌘⇧K on Mac). Chrome may leave it unassigned if there is a conflict. Change it at chrome://extensions/shortcuts.",
+        `Current shortcut: ${shortcut || "Not assigned"}. Suggested: Control+Space (⌃Space) on Mac; Ctrl+Shift+Space on Windows. Works while Chrome is focused. Change it at chrome://extensions/shortcuts. macOS may reserve Control+Space for input sources; choose another shortcut there if needed.`,
       ),
       el(
         "p",

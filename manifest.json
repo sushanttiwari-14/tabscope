@@ -7,11 +7,19 @@
   "incognito": "not_allowed",
   "permissions": ["tabs", "scripting", "storage", "activeTab"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
-  "background": { "service_worker": "background.js", "type": "module" },
-  "action": { "default_title": "Open TabScope" },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open TabScope"
+  },
   "commands": {
     "open-search": {
-      "suggested_key": { "default": "Ctrl+Shift+K", "mac": "Command+Shift+K" },
+      "suggested_key": {
+        "default": "Ctrl+Shift+Space",
+        "mac": "MacCtrl+Space"
+      },
       "description": "Search open tabs"
     }
   },
