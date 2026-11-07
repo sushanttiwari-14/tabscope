@@ -22,7 +22,7 @@ const server = createServer((req, res) => {
     "default-src 'none'; style-src 'self'; frame-src chrome-extension:; form-action 'none'",
   );
   res.end(
-    '<!doctype html><html lang="en"><head><title>Fixture · Field notes</title><link rel="stylesheet" href="/fixture.css"></head><body><header><h1>Field notes</h1><span>A small collection of observations</span></header><main><aside><b>Notebook</b><p>Observations<br>Research<br>References<br>Reading list</p></aside><article><h2>Finding patterns in everyday places</h2><p>The city changes gradually. Familiar streets, quiet courtyards and the spaces between buildings tell a story when we take time to look.</p><div class="tile"></div><h2>Keep the page in view</h2><p>This public synthetic fixture should remain visible beneath the floating search palette. Its layout and colors should be dimmed and gently blurred, never replaced by an opaque canvas.</p><p>Return to your reading as soon as the search is dismissed.</p></article></main></body></html>',
+    '<!doctype html><html lang="en"><head><title>Fixture · Field notes</title><link rel="stylesheet" href="/fixture.css"></head><body><header><h1 id="prior" tabindex="-1">Field notes</h1><span>A small collection of observations</span></header><main><aside><b>Notebook</b><p>Observations<br>Research<br>References<br>Reading list</p></aside><article><h2>Finding patterns in everyday places</h2><p>The city changes gradually. Familiar streets, quiet courtyards and the spaces between buildings tell a story when we take time to look.</p><div class="tile"></div><h2>Keep the page in view</h2><p>This public synthetic fixture should remain visible beneath the floating search palette. Its layout and colors should be dimmed and gently blurred, never replaced by an opaque canvas.</p><p>Return to your reading as soon as the search is dismissed.</p></article></main></body></html>',
   );
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -53,6 +53,13 @@ try {
   const page = await context.newPage();
   await page.goto(origin + "/notes");
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.evaluate(() => {
+    window.__outsideClicks = 0;
+    document.addEventListener("click", () => {
+      window.__outsideClicks++;
+    });
+    document.querySelector("#prior").focus();
+  });
   const priorURL = page.url(),
     tabsBefore = context.pages().length;
   const target = (
@@ -96,6 +103,33 @@ try {
   }
   await cdp.send("Extensions.triggerAction", { id, targetId: target });
   assert.equal(await page.locator("#tabscope-root").count(), 1);
+  await frame.getByRole("combobox").click();
+  assert.equal(await page.locator("#tabscope-root").count(), 1);
+  const box = await frame.getByRole("combobox").boundingBox();
+  assert.ok(box);
+  await page.mouse.move(box.x + 20, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(24, 24, { steps: 8 });
+  await page.mouse.up();
+  assert.equal(await page.locator("#tabscope-root").count(), 1);
+  await frame.getByRole("button", { name: "Settings", exact: true }).click();
+  await frame
+    .getByRole("button", { name: "← Back to search", exact: true })
+    .waitFor();
+  await page.mouse.click(24, 24);
+  await page.locator("#tabscope-root").waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => document.activeElement.id), "prior");
+  assert.equal(await page.evaluate(() => window.__outsideClicks), 0);
+  // The same backdrop action also dismisses the ordinary search view.
+  await cdp.send("Extensions.triggerAction", { id, targetId: target });
+  await frame.getByRole("combobox").waitFor();
+  await page.mouse.click(24, 24);
+  await page.locator("#tabscope-root").waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => document.activeElement.id), "prior");
+  assert.equal(await page.evaluate(() => window.__outsideClicks), 0);
+  // Escape remains supported after reopening.
+  await cdp.send("Extensions.triggerAction", { id, targetId: target });
+  await frame.getByRole("combobox").waitFor();
   await frame.getByRole("combobox").press("Escape");
   await page.locator("#tabscope-root").waitFor({ state: "detached" });
   assert.equal(page.url(), priorURL);
@@ -114,13 +148,17 @@ try {
         noNavigationOrNewTab: true,
         reinvocationReusesPalette: true,
         escapeRestoresPage: true,
+        outsideClickDismissesSearchAndSettings: true,
+        insideClickAndDragDoNotDismiss: true,
+        backdropDoesNotClickThrough: true,
+        outsideDismissRestoresFocus: true,
       },
       null,
       2,
     ),
   );
   console.log(
-    "PASS: transparent light/dark iframe, visible dimmed/blurred page, host CSP, no new tab/navigation, reinvocation and Escape",
+    "PASS: transparent light/dark iframe, visible dimmed/blurred page, host CSP, no new tab/navigation, reinvocation, outside-click dismissal/focus, no click-through, inside/drag safety and Escape",
   );
 } finally {
   await context.close();

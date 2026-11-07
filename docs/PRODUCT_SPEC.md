@@ -27,3 +27,5 @@ Search Latin-space-delimited words (Unicode letters/numbers supported). Case/dia
 First-open access: show a one-time inline explanation with an all-websites button and metadata-only alternative. Request access only on button activation. Remember grant, deny, or skip; never repeatedly request new-site permission after an all-websites grant. Existing all-site grants bypass the explanation; later changes belong in Settings.
 
 Shortcut defaults apply to new installs only; existing assignments are managed through Chrome’s shortcuts UI. Settings displays the actual registered assignment. Invocation is scoped to Chrome being focused. macOS input-source shortcuts can take priority; no OS shortcuts are disabled by TabScope.
+
+Overlay dismissal: a primary pointer press and release on the backdrop closes search or Settings, restores previous page focus, and consumes the gesture. Inside clicks and dragging from inside to outside do not dismiss. Escape remains available. This is page-backdrop behavior, not an OS-wide outside-window listener.

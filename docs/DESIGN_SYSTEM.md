@@ -39,3 +39,7 @@ Palette uses a flex column: search, access explanation and footer stay visible; 
 ## Floating overlay surface
 
 The injected iframe uses a dedicated overlay.html with transparent root and body from first paint. Both iframe element and embedded overlay document use normal color-scheme to prevent Chrome from painting an opaque dark canvas when schemes differ; palette colors still follow shared semantic theme tokens. Only the host backdrop dims/blurs the underlying page (black 35%, blur 6px). Inline host layout/backdrop values are read from the bundled shared tokens so host CSP/style rules cannot hide the overlay. Dialog-container outline is suppressed while input/button focus indicators stay visible. No new tab or navigation on supported pages; Chrome toolbar and other applications remain outside the page overlay. Restricted pages retain the extension-window fallback.
+
+## Outside-click dismissal
+
+Clicking the dimmed page backdrop dismisses the overlay from search or Settings and restores previous page focus. Clicking inside or dragging from an input to outside does not dismiss it. Only a primary-button press and release that both occur outside the dialog count; canceled pointers are ignored. The backdrop consumes the click so controls on the page underneath are not accidentally activated. Escape remains available. Standalone fallback windows are unaffected by clicks in other applications.

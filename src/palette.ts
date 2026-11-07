@@ -138,6 +138,53 @@ dialog.addEventListener("cancel", (e) => {
     showSearch();
   } else void close();
 });
+// A native dialog retargets backdrop events to itself. Use viewport bounds,
+// and require the press to start outside so dragging out of the input is safe.
+if (overlay) {
+  let outsidePointer: number | null = null;
+  const isOutside = (event: MouseEvent) => {
+    const box = dialog.getBoundingClientRect();
+    return (
+      event.clientX < box.left ||
+      event.clientX > box.right ||
+      event.clientY < box.top ||
+      event.clientY > box.bottom
+    );
+  };
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      outsidePointer =
+        event.isPrimary && event.button === 0 && isOutside(event)
+          ? event.pointerId
+          : null;
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointercancel",
+    () => {
+      outsidePointer = null;
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointerup",
+    (event) => {
+      const dismiss =
+        outsidePointer === event.pointerId &&
+        event.button === 0 &&
+        isOutside(event);
+      outsidePointer = null;
+      if (!dismiss) return;
+      // Consume the outside release before removal; do not activate the page.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void close();
+    },
+    true,
+  );
+}
 function select(index: number) {
   selected = Math.max(0, Math.min(index, hits.length - 1));
   [...list.children].forEach((row, i) =>

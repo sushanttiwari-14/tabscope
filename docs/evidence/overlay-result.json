@@ -11,5 +11,9 @@
   "dimming": 0.35,
   "noNavigationOrNewTab": true,
   "reinvocationReusesPalette": true,
-  "escapeRestoresPage": true
+  "escapeRestoresPage": true,
+  "outsideClickDismissesSearchAndSettings": true,
+  "insideClickAndDragDoNotDismiss": true,
+  "backdropDoesNotClickThrough": true,
+  "outsideDismissRestoresFocus": true
 }

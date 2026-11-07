@@ -111,3 +111,9 @@ Fixed an opaque iframe root canvas that hid the underlying tab. overlay.html now
 The installed extension was reloaded and the public Wikipedia test tab refreshed to replace its old injected agent. Native UI automation did not return a usable post-refresh screenshot for that personal-profile window; visual evidence here is the controlled Chrome fixture. Chrome toolbar/other apps are outside the page overlay, and restricted pages still use the separate fallback. No 105-tab benchmark rerun was needed for this rendering-only fix.
 
 New rendering evidence: [floating dark](screenshots/floating-dark.png), [floating light](screenshots/floating-light.png), [overlay result](evidence/overlay-result.json). All three come from the isolated synthetic fixture.
+
+## Follow-up: outside-click dismissal
+
+The dimmed page backdrop now dismisses the overlay from search or Settings. It pairs a primary pointer press/release outside the dialog bounds, which also works when Chrome does not emit a separate native-dialog backdrop click event. Canceled pointers and drags that start inside do not dismiss. The release is consumed before requesting closure; existing content-controller cleanup restores prior page focus. No window-blur listener is used, so browser permission dialogs are not mistaken for outside clicks.
+
+`npm run test:overlay` passed in real isolated Chrome 157: outside search dismissal, outside Settings dismissal, focus restored to the prior page element, zero click-through events on the page, input clicks preserved, inside-to-outside drag preserved, and Escape after reopening still works. The 19 automated tests, typecheck, lint and build pass. Updated structured evidence is in docs/evidence/overlay-result.json. No personal-profile screenshots or browsing content were saved.
