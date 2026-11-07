@@ -12,8 +12,10 @@ body {
   color: var(--text);
   background: var(--canvas);
 }
-body.overlay {
+html.overlay,
+html.overlay body {
   background: transparent;
+  color-scheme: normal;
 }
 button,
 input,
@@ -44,6 +46,7 @@ select:focus-visible {
   outline-offset: var(--focus);
 }
 dialog {
+  outline: none;
   position: relative;
   margin: 14vh auto 0;
   padding: 0;

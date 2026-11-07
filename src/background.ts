@@ -320,12 +320,13 @@ chrome.runtime.onInstalled.addListener(() => {
   void enqueue(refresh);
 });
 function uiSender(sender: chrome.runtime.MessageSender) {
-  return (
-    sender.id === chrome.runtime.id &&
-    (sender.url ?? "").split("?")[0].split("#")[0] ===
-      chrome.runtime.getURL("palette.html")
+  if (sender.id !== chrome.runtime.id) return false;
+  const documentURL = (sender.url ?? "").split("?")[0].split("#")[0];
+  return ["palette.html", "overlay.html"].some(
+    (page) => documentURL === chrome.runtime.getURL(page),
   );
 }
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
   if (!message || typeof message !== "object" || !("type" in message)) return;
   const m = message as Record<string, unknown>;

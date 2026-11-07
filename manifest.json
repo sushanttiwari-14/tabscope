@@ -26,7 +26,12 @@
   "options_page": "palette.html",
   "web_accessible_resources": [
     {
-      "resources": ["palette.html", "palette.js", "palette.css"],
+      "resources": [
+        "palette.html",
+        "palette.js",
+        "palette.css",
+        "overlay.html"
+      ],
       "matches": ["http://*/*", "https://*/*"]
     }
   ],

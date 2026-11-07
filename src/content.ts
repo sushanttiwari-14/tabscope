@@ -1,4 +1,8 @@
 import { extractReadable } from "./extract";
+import tokensCSS from "./styles/tokens.css";
+// Inline positioning survives host CSP; backdrop values share the UI tokens.
+const backdrop = /--backdrop:\s*([^;]+)/.exec(tokensCSS)![1];
+const backdropBlur = /--backdrop-blur:\s*([^;]+)/.exec(tokensCSS)![1];
 // Isolated world singleton; reinjection must not duplicate observers/listeners.
 const own = globalThis as typeof globalThis & { __tabscope?: boolean };
 if (!own.__tabscope) {
@@ -20,14 +24,13 @@ if (!own.__tabscope) {
     prior = document.activeElement;
     host = document.createElement("div");
     host.id = "tabscope-root";
-    host.style.cssText =
-      "all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;display:block!important;background:#00000047!important";
+    host.style.cssText = `all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;display:block!important;isolation:isolate!important;background:${backdrop}!important;backdrop-filter:blur(${backdropBlur})!important`;
     const shadow = host.attachShadow({ mode: "open" });
     const frame = document.createElement("iframe");
     frame.title = "TabScope search";
-    frame.src = chrome.runtime.getURL("palette.html?overlay");
+    frame.src = chrome.runtime.getURL("overlay.html");
     frame.style.cssText =
-      "width:100%;height:100%;border:0;background:transparent;color-scheme:normal";
+      "display:block;width:100%;height:100%;border:0;outline:none;background:transparent;color-scheme:normal";
     shadow.append(frame);
     document.documentElement.append(host);
     frame.focus();

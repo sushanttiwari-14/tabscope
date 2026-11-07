@@ -11,8 +11,13 @@ import {
   type Preferences,
 } from "./types";
 import { normalize, tokenize } from "./search";
-const overlay = new URLSearchParams(location.search).has("overlay");
-if (overlay) document.body.classList.add("overlay");
+const overlay =
+  location.pathname.endsWith("/overlay.html") ||
+  new URLSearchParams(location.search).has("overlay");
+if (overlay) {
+  document.documentElement.classList.add("overlay");
+  document.body.classList.add("overlay");
+}
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className = "",
