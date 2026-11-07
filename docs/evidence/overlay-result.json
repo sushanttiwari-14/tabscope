@@ -1,0 +1,19 @@
+{
+  "browser": "157.0.8103.39",
+  "passed": true,
+  "modes": [
+    "light",
+    "dark"
+  ],
+  "transparentRootAndBody": true,
+  "hostCSP": true,
+  "blur": "6px",
+  "dimming": 0.35,
+  "noNavigationOrNewTab": true,
+  "reinvocationReusesPalette": true,
+  "escapeRestoresPage": true,
+  "outsideClickDismissesSearchAndSettings": true,
+  "insideClickAndDragDoNotDismiss": true,
+  "backdropDoesNotClickThrough": true,
+  "outsideDismissRestoresFocus": true
+}

@@ -1,0 +1,43 @@
+{
+  "name": "tabscope",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "test:browser": "node scripts/browser.mjs",
+    "test:access": "node scripts/access-smoke.mjs",
+    "test:overlay": "node scripts/overlay-smoke.mjs"
+  },
+  "dependencies": {
+    "minisearch": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.30",
+    "@types/node": "^24.0.0",
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "typescript-eslint": "^8.46.0",
+    "typescript": "^5.9.3",
+    "esbuild": "^0.25.0",
+    "vitest": "^4.0.0",
+    "tsx": "^4.20.0",
+    "playwright": "^1.56.0",
+    "jsdom": "^27.0.0",
+    "prettier": "^3.6.0"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
+  }
+}

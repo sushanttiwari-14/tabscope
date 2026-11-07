@@ -1,0 +1,15 @@
+
+> tabscope@0.1.0 benchmark
+> tsx scripts/benchmark.ts
+
+{
+  "node": "v24.21.0",
+  "platform": "darwin",
+  "cpu": "Apple M4",
+  "memoryGB": 16
+}
+{"tabs":5,"chars":99773,"coldRebuildRepetitions":10,"coldP50":2.71,"coldP95":4.94,"warmRepetitions":250,"warmP50":0.19,"warmP95":0.23,"heapMB":9}
+{"tabs":20,"chars":399069,"coldRebuildRepetitions":10,"coldP50":9.8,"coldP95":9.88,"warmRepetitions":250,"warmP50":0.74,"warmP95":0.78,"heapMB":10}
+{"tabs":50,"chars":997684,"coldRebuildRepetitions":10,"coldP50":23.84,"coldP95":24.99,"warmRepetitions":250,"warmP50":1.84,"warmP95":1.99,"heapMB":18}
+{"tabs":100,"chars":1995345,"coldRebuildRepetitions":10,"coldP50":48.54,"coldP95":50.23,"warmRepetitions":250,"warmP50":3.69,"warmP95":3.91,"heapMB":11}
+{"tabs":150,"chars":2993006,"coldRebuildRepetitions":10,"coldP50":72.76,"coldP95":74.11,"warmRepetitions":250,"warmP50":4.75,"warmP95":5.08,"heapMB":20}
