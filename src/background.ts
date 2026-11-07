@@ -109,12 +109,22 @@ async function reconcile() {
   const tabs = await chrome.tabs.query({ windowType: "normal" });
   const ids = new Set(tabs.filter((t) => !t.incognito).map((t) => t.id));
   for (const id of records.keys()) if (!ids.has(id)) records.delete(id);
+  const accessByOrigin = new Map<string, Promise<boolean>>();
+  for (const tab of tabs)
+    if (safeURL(tab.url)) {
+      const origin = new URL(tab.url!).origin;
+      if (!accessByOrigin.has(origin))
+        accessByOrigin.set(origin, allowed(tab.url!));
+    }
+  await Promise.all(accessByOrigin.values());
   for (const t of tabs) {
     if (t.id === undefined || t.incognito) continue;
     const old = records.get(t.id);
     const url = t.url ?? "";
     const deny = excluded(url, prefs.exclusions);
-    const access = await allowed(url);
+    const access = safeURL(url)
+      ? await accessByOrigin.get(new URL(url).origin)
+      : false;
     const keep =
       old &&
       old.url === url &&
@@ -262,6 +272,16 @@ chrome.action.onClicked.addListener((t) => {
 });
 chrome.commands.onCommand.addListener((command) => {
   if (command === "open-search") void invoke();
+});
+chrome.tabs.onReplaced.addListener((added, removed) => {
+  bump(removed);
+  bump(added);
+  void enqueue(async () => {
+    await initialize();
+    records.delete(removed);
+    await reconcile();
+  });
+  schedule(added);
 });
 chrome.tabs.onRemoved.addListener((id) => {
   bump(id);

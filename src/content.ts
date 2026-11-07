@@ -105,6 +105,20 @@ if (!own.__tabscope) {
       len = word.length;
     }
     if (at < 0 || !len) return false;
+    // Snippet context may start in another block. Scroll and paint the matching
+    // words inside that context, rather than its first node above the passage.
+    const matches = (query.match(/[\p{L}\p{N}]+/gu) ?? [])
+      .map((word) => {
+        const offset = combined.toLowerCase().indexOf(word.toLowerCase(), at);
+        return { offset, end: offset + word.length };
+      })
+      .filter((m) => m.offset >= at && m.end <= at + len);
+    if (matches.length) {
+      const start = Math.min(...matches.map((m) => m.offset));
+      const end = Math.max(...matches.map((m) => m.end));
+      at = start;
+      len = end - start;
+    }
     const end = at + len - 1;
     const first = nodes.find(
       (n) => n.start <= at && at < n.start + n.map.length,

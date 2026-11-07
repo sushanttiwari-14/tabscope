@@ -1,3 +1,6 @@
+[hidden] {
+  display: none !important;
+}
 * {
   box-sizing: border-box;
 }
@@ -78,7 +81,7 @@ body:not(.overlay) dialog {
   flex: 1;
   min-width: 0;
   border: 0;
-  outline: none !important;
+  outline: none;
   background: transparent;
   font: var(--normal) var(--input)/var(--input-lh) var(--font);
   letter-spacing: var(--input-tracking);

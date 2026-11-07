@@ -51,6 +51,7 @@ async function setup() {
       },
       sendMessage: async () => true,
       onRemoved: event(),
+      onReplaced: event(),
       onUpdated: event(),
     },
     windows: {
@@ -156,6 +157,38 @@ describe("background lifecycle integration", () => {
       (await send({ type: "search", query: "ceramic" })).hits,
     ).toHaveLength(0);
   });
+  it("does not restore a late extraction after clear has been requested", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const beginning = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const scripting = chromeMock.scripting as {
+      executeScript: (args: { func?: unknown }) => Promise<unknown>;
+    };
+    const original = scripting.executeScript;
+    scripting.executeScript = async (args) => {
+      if (typeof args.func === "function") {
+        started();
+        await blocked;
+      }
+      return original(args);
+    };
+    const refresh = send({ type: "refresh" });
+    await beginning;
+    const cleared = send({ type: "clear" });
+    release();
+    await refresh;
+    await cleared;
+    expect(
+      (await send({ type: "search", query: "ceramic" })).hits,
+    ).toHaveLength(0);
+    expect(session.records).toBeUndefined();
+    expect((local.preferences as { paused: boolean }).paused).toBe(true);
+  });
   it("rejects webpage search messages and reports failed navigation", async () => {
     expect(
       (
@@ -164,6 +197,9 @@ describe("background lifecycle integration", () => {
           "https://example.com/palette.html",
         )
       ).error,
+    ).toBe("Unauthorized request");
+    expect(
+      (await send({ type: "search", query: "" }, "file:///palette.html")).error,
     ).toBe("Unauthorized request");
     await send({ type: "refresh" });
     await send({ type: "search", query: "" });
