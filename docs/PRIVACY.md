@@ -29,3 +29,7 @@ The worker owns data. Content agents only report dirty state; privileged UI mess
 ## Remaining limits
 
 No cryptographic deletion guarantee. Memory/search-library copies are reclaimed by JavaScript garbage collection, whose timing is outside the extension's control. Exclusion changes cannot remove information already copied by the user or captured outside the extension. CSS Highlight is non-destructive and removed after five seconds, but site styles/content changes can interfere. Permission prompts and browser security controls are owned by Chrome.
+
+## First-open explanation
+
+On first opening the palette, a compact explanation offers an all-websites grant or titles/URLs-only search. A permission request occurs only from the grant button’s user gesture; nothing is granted by default. Grant, denial, or metadata-only choice saves a local `contentAccessExplained` flag so it does not recur. Existing all-site grants suppress the explanation. Chrome retains the actual website permissions. The explanation flag is retained by Clear Data alongside other preferences.

@@ -14,7 +14,8 @@
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm test",
     "benchmark": "tsx scripts/benchmark.ts",
-    "test:browser": "node scripts/browser.mjs"
+    "test:browser": "node scripts/browser.mjs",
+    "test:access": "node scripts/access-smoke.mjs"
   },
   "dependencies": {
     "minisearch": "^7.2.0"

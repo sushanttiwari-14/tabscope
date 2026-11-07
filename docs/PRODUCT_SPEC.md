@@ -23,3 +23,5 @@ Top-level rendered HTTP(S) DOM text, including below viewport; scripts/styles/fo
 7. Tests, benchmark methodology and unverified manual checks are recorded honestly.
 
 Search Latin-space-delimited words (Unicode letters/numbers supported). Case/diacritics folded; prefixes accepted. No stemming or language segmentation for CJK. All terms required across fields. Body weight 2, title 3, URL 1; phrase match body boost 1.5; no additional distance/proximity boost; deterministic tab ID tie. Snippet uses actual indexed text around first query occurrence, emphasizing all matched terms. Navigation uses excerpt context, tolerates split nodes, and reports if passage changed.
+
+First-open access: show a one-time inline explanation with an all-websites button and metadata-only alternative. Request access only on button activation. Remember grant, deny, or skip; never repeatedly request new-site permission after an all-websites grant. Existing all-site grants bypass the explanation; later changes belong in Settings.

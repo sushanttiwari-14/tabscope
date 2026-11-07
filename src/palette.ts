@@ -1,3 +1,8 @@
+import {
+  shouldExplainAccess,
+  dismissAccessExplanation,
+  allowAllWebsites,
+} from "./access";
 import { BRAND } from "./brand";
 import {
   normalizeHost,
@@ -42,6 +47,29 @@ const exit = el("button", "close");
 exit.setAttribute("aria-label", "Close search");
 exit.append(el("kbd", "", "esc"));
 top.append(logo, input, exit);
+const accessPrompt = el("section", "access-prompt");
+accessPrompt.hidden = true;
+accessPrompt.setAttribute("aria-labelledby", "access-heading");
+const accessHeading = el("strong", "", "Search inside your tabs");
+accessHeading.id = "access-heading";
+const accessActions = el("div", "actions");
+accessActions.append(
+  button("Allow all websites", chooseAllWebsites),
+  button("Titles & URLs only", async () => {
+    await dismissAccessExplanation();
+    hideAccessExplanation();
+    input.focus();
+  }),
+);
+accessPrompt.append(
+  accessHeading,
+  el(
+    "p",
+    "",
+    "Allow website access once to search readable text across your open tabs, including new sites. This can include sensitive text. Search stays on your device. You can change access in Settings.",
+  ),
+  accessActions,
+);
 const list = el("ul", "list");
 list.id = "results";
 list.setAttribute("role", "listbox");
@@ -60,7 +88,7 @@ const settingsButton = el("button", "quiet", "Settings");
 const live = el("span", "sr");
 live.setAttribute("aria-live", "polite");
 footer.append(coverage, hints, settingsButton);
-dialog.append(top, list, state, settings, alert, footer, live);
+dialog.append(top, accessPrompt, list, state, settings, alert, footer, live);
 document.body.append(dialog);
 dialog.showModal();
 input.focus();
@@ -69,6 +97,25 @@ let selected = 0;
 let sequence = 0;
 let inSettings = false;
 let composing = false;
+let explainAccess = false;
+function hideAccessExplanation() {
+  explainAccess = false;
+  accessPrompt.hidden = true;
+}
+async function chooseAllWebsites() {
+  const granted = await allowAllWebsites();
+  hideAccessExplanation();
+  if (!granted)
+    throw Error(
+      "Website access was not granted. Titles and URLs still work. You can change access in Settings.",
+    );
+  alert.hidden = true;
+  await request({ type: "refresh" });
+  if (!inSettings) {
+    input.focus();
+    await update();
+  }
+}
 const error = (e: unknown) => {
   alert.hidden = false;
   alert.textContent = e instanceof Error ? e.message : String(e);
@@ -220,6 +267,7 @@ input.onkeydown = (e) => {
 };
 function showSearch() {
   inSettings = false;
+  accessPrompt.hidden = !explainAccess;
   settings.hidden = true;
   list.hidden = false;
   top.hidden = false;
@@ -237,6 +285,7 @@ function button(text: string, fn: () => Promise<unknown>) {
 }
 async function showSettings() {
   inSettings = true;
+  accessPrompt.hidden = true;
   ++sequence;
   list.hidden = true;
   state.hidden = true;
@@ -287,16 +336,7 @@ async function showSettings() {
           );
         await request({ type: "refresh" });
       }),
-      button("Allow all websites", async () => {
-        const granted = await chrome.permissions.request({
-          origins: ["http://*/*", "https://*/*"],
-        });
-        if (!granted)
-          throw Error(
-            "Access was not granted. Metadata search is still available.",
-          );
-        await request({ type: "refresh" });
-      }),
+      button("Allow all websites", chooseAllWebsites),
       button("Revoke website access", async () => {
         const all = await chrome.permissions.getAll();
         if (all.origins?.length)
@@ -377,6 +417,12 @@ async function showSettings() {
 settingsButton.onclick = () => {
   void showSettings();
 };
+void shouldExplainAccess()
+  .then((show) => {
+    explainAccess = show;
+    accessPrompt.hidden = inSettings || !show;
+  })
+  .catch(error);
 void request({ type: "refresh" }).then(update).catch(error);
 const polling = setInterval(() => {
   if (!document.hidden && !inSettings) void update();

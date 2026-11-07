@@ -296,3 +296,32 @@ footer {
     transition: none !important;
   }
 }
+
+.access-prompt {
+  padding: var(--s4) var(--s5);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--canvas);
+}
+.access-prompt strong {
+  font-size: var(--title);
+  font-weight: var(--strong);
+}
+.access-prompt p {
+  margin: var(--s2) 0 0;
+  color: var(--muted);
+}
+
+dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.top,
+footer,
+.access-prompt {
+  flex-shrink: 0;
+}
+.list,
+.settings {
+  min-height: 0;
+  flex-shrink: 1;
+}

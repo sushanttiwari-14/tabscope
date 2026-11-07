@@ -19,7 +19,7 @@ Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**,
 
 Click the extension icon, or try **Ctrl+Shift+K** (**⌘⇧K** on Mac). Assignment can conflict; set your preferred command at `chrome://extensions/shortcuts`. Chrome does not allow extensions to change your command assignment programmatically.
 
-Open **Settings** in the palette. Grant a single hostname or all websites to include page contents. With no website access, titles and URLs still work. Coverage shows how many tabs are content-searchable. Type multiple keywords, use ↑/↓ and Return to jump, or Escape to close. Reinvoking refocuses the existing palette. Browser-internal/protected pages use a separate extension window. You can also open the extension's **Options** page from Chrome's extension details.
+On first opening, choose **Allow all websites** to enable content search across current and future sites, or **Titles & URLs only** to continue without website access. Chrome asks for an explicit grant once; it is never granted silently. The choice is remembered. You can also open **Settings** to grant a single hostname, change access, or revoke it. With no website access, titles and URLs still work. Coverage shows how many tabs are content-searchable. Type multiple keywords, use ↑/↓ and Return to jump, or Escape to close. Reinvoking refocuses the existing palette. Browser-internal/protected pages use a separate extension window. You can also open the extension's **Options** page from Chrome's extension details.
 
 ## Privacy and limits
 
@@ -37,6 +37,7 @@ npm test
 npm run build
 npm run benchmark    # controlled in-process synthetic 5/20/50/100/150-tab benchmark
 npm run test:browser # isolated Chrome test profile; see docs/TESTING.md
+npm run test:access  # first-open choice; no website grant or native prompt
 ```
 
 Reload the extension at `chrome://extensions` after rebuilding. Reload tested web pages to replace old injected agents after updating content scripts.

@@ -27,7 +27,7 @@ Experimental CDP APIs and the `--enable-unsafe-extension-debugging` flag are use
 ## Automated results
 
 - Strict TypeScript, ESLint: passed.
-- Vitest: **15 tests across 3 files passed**. Multiword/prefix/diacritic ranking; real-source snippets; deterministic ordering; incremental record replacement and body eviction; host exclusion boundaries; budget eviction; generation/URL/paused/denied commit protection; bounded extraction/hidden/form/editable omission; extraction→search; saved settings; restored worker records; closure/revocation/discard behavior; navigation failure; untrusted sender rejection, including null-origin URL spoof; blocked late extraction racing Clear Data.
+- Vitest: **19 tests across 4 files passed**. Multiword/prefix/diacritic ranking; real-source snippets; deterministic ordering; incremental record replacement and body eviction; host exclusion boundaries; budget eviction; generation/URL/paused/denied commit protection; bounded extraction/hidden/form/editable omission; extraction→search; saved settings; restored worker records; closure/revocation/discard behavior; navigation failure; untrusted sender rejection, including null-origin URL spoof; blocked late extraction racing Clear Data.
 - Production build passed. Chrome reported no manifest install warnings/errors in the isolated automated profile.
 - npm audit: zero vulnerabilities after a scoped `minimatch` override to 11.0.1+ for the TypeScript ESLint development toolchain. Production `npm audit --omit=dev` also passed. This describes this lockfile at verification time.
 - GitHub Quality workflow passed on pushed checkpoints. Final workflow status is linked in the draft PR.
@@ -91,3 +91,9 @@ These are **unverified**, not passed:
 - [ ] Quantitative contrast audit, page-level assistive-technology behavior and IME composition with a real non-Latin input method. Reduced-motion/light/dark are media-emulated; IME guards are implemented but not manually exercised.
 
 Do not merge, release, submit to the store, or mark production-ready based on this report. Keep the PR draft until release gates are checked or explicitly scoped by a reviewer.
+
+## Follow-up: one-time access choice
+
+Added an inline first-open explanation offering all-websites content access or titles/URLs-only search. Four focused tests verify no automatic permission request, persistence after skip/deny/grant, exact HTTP(S) scope, and suppression for existing all-site grants. All 19 tests, typecheck, lint and build pass. `npm run test:access` loads the built extension in a fresh isolated Chrome profile and verifies the explanation is visible, no host access is granted automatically, metadata-only dismissal survives reload, and Settings remains available. This browser smoke check passed on Chrome 157. It makes no external website permission request and uses blank/local extension tabs only. Existing 105-tab measurements above are from the preceding core implementation and were not repeated for this UI-only follow-up.
+
+In the user's regular Chrome, the updated build was reloaded and the native all-websites prompt was displayed. After the user's explicit approval, content coverage was observed across multiple sites. No screenshots, page contents or browsing index from the personal profile are saved as evidence.

@@ -29,3 +29,9 @@ Main: [scope glyph] [Search anything in your tabs…] [esc]\nseparator\n[28px ne
 ## Accessibility and behavior
 
 Native modal dialog in extension document, with visible product label. Search combobox controls listbox with aria-activedescendant; options expose selected state. Polite live count/coverage; alert for navigation failures. Keyboard arrows only intercepted outside IME; Enter activates selected result; Escape exits settings then closes. Tab stays within native modal, close restores page focus through content controller. Pointer hover changes selection only on actual pointer move, click activates. Input receives immediate focus; repeated invocation refocuses existing palette. At 200% zoom and narrow viewports list and settings scroll, controls wrap. UI iframe has descriptive title. Host page can interfere with overlay: fallback extension window offers an isolated surface.
+
+## First-open access choice
+
+One inline section below the search field explains local content search and the sensitivity of readable text. Uses surface/canvas/text tokens, 16px/20px padding, 14px semibold heading, 13/20 body, and existing 32px buttons. “Allow all websites” and “Titles & URLs only” are explicit choices. No automatic permission request, blocking welcome screen, focus theft, or recurring prompt. A grant, denial, or metadata-only choice is remembered; existing all-site users see no prompt. Settings remains the place to change or revoke access.
+
+Palette uses a flex column: search, access explanation and footer stay visible; result/settings lists shrink with min-height:0 and scroll within the remaining height. This prevents the one-time access explanation from clipping the footer on narrow viewports.
