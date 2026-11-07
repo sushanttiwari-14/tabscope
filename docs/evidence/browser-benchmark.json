@@ -1,0 +1,38 @@
+[
+  {
+    "tabs": 5,
+    "chars": 80550,
+    "indexed": 5,
+    "repetitions": 30,
+    "initializationMs": 349,
+    "warmRoundtripP50": 0.92,
+    "warmRoundtripP95": 2.16
+  },
+  {
+    "tabs": 20,
+    "chars": 382050,
+    "indexed": 20,
+    "repetitions": 30,
+    "initializationMs": 750,
+    "warmRoundtripP50": 2.28,
+    "warmRoundtripP95": 4.03
+  },
+  {
+    "tabs": 50,
+    "chars": 985050,
+    "indexed": 50,
+    "repetitions": 30,
+    "initializationMs": 1564,
+    "warmRoundtripP50": 5.28,
+    "warmRoundtripP95": 5.81
+  },
+  {
+    "tabs": 105,
+    "chars": 1989900,
+    "indexed": 99,
+    "repetitions": 30,
+    "initializationMs": 3425,
+    "warmRoundtripP50": 10.01,
+    "warmRoundtripP95": 11.51
+  }
+]
