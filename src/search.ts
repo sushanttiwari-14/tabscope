@@ -26,9 +26,31 @@ export class SearchIndex {
     processTerm: normalize,
   });
   rebuild(records: Map<number, TabRecord>) {
-    this.records = new Map(records);
+    this.records = new Map(
+      [...records].map(([id, record]) => [id, { ...record }]),
+    );
     this.engine.removeAll();
     this.engine.addAll([...records.values()]);
+  }
+  sync(records: Map<number, TabRecord>) {
+    for (const [id, old] of this.records)
+      if (!records.has(id)) this.engine.remove(old);
+    for (const [id, record] of records) {
+      const old = this.records.get(id);
+      if (
+        !old ||
+        old.title !== record.title ||
+        old.url !== record.url ||
+        old.text !== record.text
+      ) {
+        if (old) this.engine.remove(old);
+        this.engine.add(record);
+      }
+    }
+    // Own immutable snapshots, so budget eviction cannot mutate removal inputs.
+    this.records = new Map(
+      [...records].map(([id, record]) => [id, { ...record }]),
+    );
   }
   search(query: string): Hit[] {
     const terms = tokenize(query);

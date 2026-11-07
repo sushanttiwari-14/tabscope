@@ -63,7 +63,7 @@ async function allowed(url: string) {
 }
 async function persist() {
   enforceBudget(records);
-  search.rebuild(records);
+  search.sync(records);
   await chrome.storage.session.set({
     schema: 1,
     records: [...records.values()],

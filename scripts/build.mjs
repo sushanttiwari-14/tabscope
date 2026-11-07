@@ -1,10 +1,11 @@
 import { build, context } from "esbuild";
 import { mkdir, copyFile, writeFile, readFile } from "node:fs/promises";
 await mkdir("dist", { recursive: true });
+const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
 await copyFile("manifest.json", "dist/manifest.json");
 await writeFile(
   "dist/palette.html",
-  '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TabScope</title><link rel="stylesheet" href="palette.css"></head><body><script type="module" src="palette.js"></script></body></html>',
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${manifest.name}</title><link rel="stylesheet" href="palette.css"></head><body><script type="module" src="palette.js"></script></body></html>`,
 );
 await writeFile(
   "dist/palette.css",

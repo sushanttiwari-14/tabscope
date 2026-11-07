@@ -46,6 +46,21 @@ describe("search", () => {
     expect(snippet("plain text", "absent")).toBe("plain text");
     expect(snippet("", "q")).toBe("");
   });
+  it("updates changed records incrementally, including in-place body eviction", () => {
+    const index = new SearchIndex();
+    const records = new Map([[1, record(1, "ceramic secret")]]);
+    index.rebuild(records);
+    records.get(1)!.text = "orbital engine";
+    index.sync(records);
+    expect(index.search("ceramic")).toHaveLength(0);
+    expect(index.search("orbital")).toHaveLength(1);
+    records.get(1)!.text = "";
+    index.sync(records);
+    expect(index.search("orbital")).toHaveLength(0);
+    records.clear();
+    index.sync(records);
+    expect(index.search("")).toHaveLength(0);
+  });
   it("removes obsolete results on rebuild", () => {
     const s = new SearchIndex();
     s.rebuild(new Map([[1, record(1, "secret")]]));
