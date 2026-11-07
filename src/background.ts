@@ -15,22 +15,47 @@ const generations = new Map<number, number>();
 const search = new SearchIndex();
 let prefs: Preferences = { ...DEFAULTS };
 let ready = false;
-let chain: Promise<unknown> = Promise.resolve();
 let popup: number | undefined;
 const pending = new Set<number>();
+const rerun = new Set<number>();
 const bump = (id: number) =>
   generations.set(id, (generations.get(id) ?? 0) + 1);
-function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  const next = chain.then(fn, fn);
-  chain = next.catch(() => {});
-  return next;
+const urgent: (() => Promise<void>)[] = [];
+const background: (() => Promise<void>)[] = [];
+let draining = false;
+async function drain() {
+  if (draining) return;
+  draining = true;
+  try {
+    while (urgent.length || background.length)
+      await (urgent.shift() ?? background.shift())!();
+  } finally {
+    draining = false;
+  }
+}
+function enqueue<T>(fn: () => Promise<T>, interactive = true): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    (interactive ? urgent : background).push(async () => {
+      try {
+        resolve(await fn());
+      } catch (e) {
+        reject(e);
+      }
+    });
+    void drain();
+  });
+}
+function invalidateViews() {
+  void chrome.runtime
+    .sendMessage({ type: "index-invalidated" })
+    .catch(() => {});
 }
 const safeURL = (url = "") => /^https?:\/\//.test(url);
 async function allowed(url: string) {
   if (!safeURL(url)) return false;
   try {
     return await chrome.permissions.contains({
-      origins: [new URL(url).origin + "/*"],
+      origins: [new URL(url).protocol + "//" + new URL(url).hostname + "/*"],
     });
   } catch {
     return false;
@@ -73,6 +98,13 @@ async function initialize() {
   await reconcile();
 }
 async function reconcile() {
+  if (prefs.paused) {
+    if (records.size) {
+      records.clear();
+      await persist();
+    }
+    return;
+  }
   const before = JSON.stringify([...records.values()]);
   const tabs = await chrome.tabs.query({ windowType: "normal" });
   const ids = new Set(tabs.filter((t) => !t.incognito).map((t) => t.id));
@@ -174,20 +206,26 @@ async function indexTab(id: number) {
   }
 }
 function schedule(id: number) {
-  if (pending.has(id)) return;
+  if (pending.has(id)) {
+    rerun.add(id);
+    return;
+  }
   pending.add(id);
   void enqueue(async () => {
     try {
       await indexTab(id);
     } finally {
       pending.delete(id);
+      if (rerun.delete(id)) schedule(id);
     }
-  });
+  }, false);
 }
 async function refresh() {
   await initialize();
   await reconcile();
-  for (const id of records.keys()) schedule(id);
+  for (const [id, record] of records)
+    if (record.state !== "content" || Date.now() - record.updated > 300_000)
+      schedule(id);
 }
 async function fallback() {
   if (popup !== undefined) {
@@ -245,6 +283,7 @@ chrome.tabs.onUpdated.addListener((id, change) => {
   if (change.status === "complete" || change.url) schedule(id);
 });
 chrome.permissions.onRemoved.addListener(() => {
+  invalidateViews();
   for (const id of records.keys()) bump(id);
   void enqueue(async () => {
     await initialize();
@@ -325,6 +364,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         };
         await chrome.storage.local.set({ preferences: prefs });
         await reconcile();
+        invalidateViews();
         for (const id of records.keys()) schedule(id);
         return prefs;
       }
@@ -334,6 +374,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         search.rebuild(records);
         await chrome.storage.local.set({ preferences: prefs });
         await chrome.storage.session.clear();
+        invalidateViews();
         return prefs;
       }
       case "resume": {

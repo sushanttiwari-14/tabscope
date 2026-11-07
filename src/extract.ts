@@ -10,41 +10,38 @@ export function extractReadable() {
   const walker = document.createTreeWalker(
     document.body ?? document.documentElement,
     NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        const p = node.parentElement;
-        if (!p || p.closest(ignored)) return NodeFilter.FILTER_REJECT;
-        for (let el: Element | null = p; el; el = el.parentElement) {
-          const s = getComputedStyle(el);
-          if (
-            s.display === "none" ||
-            s.visibility === "hidden" ||
-            s.visibility === "collapse" ||
-            s.opacity === "0"
-          )
-            return NodeFilter.FILTER_REJECT;
-        }
-        return node.textContent?.trim()
-          ? NodeFilter.FILTER_ACCEPT
-          : NodeFilter.FILTER_REJECT;
-      },
-    },
   );
   while (walker.nextNode()) {
-    visited++;
-    if (visited > nodesLimit) {
+    if (++visited > nodesLimit) {
       truncated = true;
       break;
     }
-    const chunk = (walker.currentNode.textContent ?? "")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (text.length + chunk.length + 1 > limit) {
-      text += (text ? " " : "") + chunk.slice(0, limit - text.length - 1);
+    const node = walker.currentNode;
+    const p = node.parentElement;
+    if (!p || p.closest(ignored) || !node.textContent?.trim()) continue;
+    let visible = true;
+    for (let el: Element | null = p; el; el = el.parentElement) {
+      const s = getComputedStyle(el);
+      if (
+        s.display === "none" ||
+        s.visibility === "hidden" ||
+        s.visibility === "collapse" ||
+        s.opacity === "0"
+      ) {
+        visible = false;
+        break;
+      }
+    }
+    if (!visible) continue;
+    const chunk = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+    const separator = text ? " " : "";
+    if (text.length + separator.length + chunk.length > limit) {
+      text +=
+        separator + chunk.slice(0, limit - text.length - separator.length);
       truncated = true;
       break;
     }
-    text += (text ? " " : "") + chunk;
+    text += separator + chunk;
   }
   return { url: location.href, text, truncated };
 }

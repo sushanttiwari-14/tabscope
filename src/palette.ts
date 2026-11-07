@@ -382,3 +382,14 @@ const polling = setInterval(() => {
   if (!document.hidden && !inSettings) void update();
 }, 2000);
 window.addEventListener("pagehide", () => clearInterval(polling));
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender.id !== chrome.runtime.id || message?.type !== "index-invalidated")
+    return;
+  ++sequence;
+  hits = [];
+  selected = 0;
+  list.replaceChildren();
+  input.removeAttribute("aria-activedescendant");
+  if (!inSettings) void update();
+});

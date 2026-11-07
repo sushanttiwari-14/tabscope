@@ -32,6 +32,7 @@ async function setup() {
   chromeMock = {
     runtime: {
       id: "test",
+      sendMessage: async () => {},
       getURL: (p: string) => "chrome-extension://test/" + p,
       onMessage: runtime,
       onStartup: event(),
