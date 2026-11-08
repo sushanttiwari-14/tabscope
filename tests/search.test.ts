@@ -191,5 +191,26 @@ it("marks evictions explicitly and never exceeds the passage display bound", () 
   enforceBudget(records, 1);
   expect(records.get(1)?.coverage).toBe("budget");
   expect(snippet("event" + "x".repeat(60000), "event")).toBe("");
-  expect(snippet("x".repeat(50_000) + " event horizon", "event horizon").length).toBeLessThanOrEqual(242);
+  expect(
+    snippet("x".repeat(50_000) + " event horizon", "event horizon").length,
+  ).toBeLessThanOrEqual(242);
+});
+
+it("keeps complete title matches compact without targeting a weak navigation word", () => {
+  const index = new SearchIndex();
+  index.rebuild(
+    new Map([
+      [
+        1,
+        record(
+          1,
+          "event menu " + "navigation ".repeat(100),
+          "Event horizon reference",
+        ),
+      ],
+    ]),
+  );
+  const hit = index.search("event horizon")[0];
+  expect(hit.snippet).toBe("");
+  expect(hit.passage).toBeUndefined();
 });

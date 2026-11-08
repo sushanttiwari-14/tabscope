@@ -79,6 +79,7 @@ try {
   let result = await call({ type: "search", query: "orbital ceramic" });
   assert.equal(result.hits.length, 0);
   await ui.getByRole("button", { name: "Settings", exact: true }).click();
+  await ui.getByText("Website access", { exact: true }).click();
   await ui
     .getByRole("textbox", { name: "Website hostname for access" })
     .fill("127.0.0.1");

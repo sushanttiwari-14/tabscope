@@ -28,6 +28,31 @@ function el<K extends keyof HTMLElementTagNameMap>(
   e.textContent = text;
   return e;
 }
+function icon(name: "filters" | "settings" | "close" | "arrow") {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.65");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const paths = {
+    filters: ["M4 7h16M4 17h16M9 4v6M15 14v6"],
+    settings: [
+      "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
+      "m10 3-.6 2-2 .9-1.9-.5-2 3.4L5 10.2v3.6l-1.5 1.4 2 3.4 1.9-.5 2 .9.6 2h4l.6-2 2-.9 1.9.5 2-3.4-1.5-1.4v-3.6l1.5-1.4-2-3.4-1.9.5-2-.9-.6-2z",
+    ],
+    close: ["m7 7 10 10M17 7 7 17"],
+    arrow: ["M19 5v7a3 3 0 0 1-3 3H5m4-4-4 4 4 4"],
+  };
+  for (const d of paths[name]) {
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
 async function request<T>(message: Record<string, unknown>): Promise<T> {
   const data = await chrome.runtime.sendMessage(message);
   if (data?.error) throw Error(data.error);
@@ -56,7 +81,7 @@ searchGlyph.append(lens, handle);
 logo.append(searchGlyph);
 logo.setAttribute("aria-hidden", "true");
 const input = el("input", "field");
-input.placeholder = "Search your open tabs…";
+input.placeholder = "Search tabs…";
 input.maxLength = 500;
 input.setAttribute("aria-label", "Search open tabs");
 input.setAttribute("role", "combobox");
@@ -65,10 +90,21 @@ input.setAttribute("aria-controls", "results");
 input.setAttribute("aria-expanded", "true");
 input.autocomplete = "off";
 input.spellcheck = false;
+const clearSearch = el("button", "icon-button clear-search");
+clearSearch.setAttribute("aria-label", "Clear search");
+clearSearch.title = "Clear search";
+clearSearch.hidden = true;
+clearSearch.append(icon("close"));
+clearSearch.onclick = () => {
+  input.value = "";
+  selected = 0;
+  input.focus();
+  void update();
+};
 const exit = el("button", "close");
 exit.setAttribute("aria-label", "Close search");
 exit.append(el("kbd", "", "esc"));
-top.append(logo, input, exit);
+top.append(logo, input, clearSearch, exit);
 const accessPrompt = el("section", "access-prompt");
 accessPrompt.hidden = true;
 accessPrompt.setAttribute("aria-labelledby", "access-heading");
@@ -83,12 +119,14 @@ accessActions.append(
     input.focus();
   }),
 );
+accessActions.firstElementChild?.classList.add("primary");
+accessActions.lastElementChild?.classList.add("text-button");
 accessPrompt.append(
   accessHeading,
   el(
     "p",
     "",
-    "Allow website access once to search readable text across your open tabs, including new sites. This can include sensitive text. Search stays on your device. You can change access in Settings.",
+    "Find words inside pages, too. Website access can include sensitive text. Everything stays on this device; you control access in Settings.",
   ),
   accessActions,
 );
@@ -112,11 +150,37 @@ coverageDetails.setAttribute("aria-label", "Page text coverage and recovery");
 coverage.setAttribute("aria-controls", coverageDetails.id);
 coverage.onclick = () => {
   coverageDetails.hidden = !coverageDetails.hidden;
+  if (!coverageDetails.hidden) {
+    filterControls.hidden = true;
+    filterBar.setAttribute("aria-expanded", "false");
+  }
   coverage.setAttribute("aria-expanded", String(!coverageDetails.hidden));
 };
-const filterBar = el("details", "filters");
-const filterSummary = el("summary", "", "Filters");
-const filterControls = el("div", "filter-controls");
+const filterBar = el("button", "icon-button filter-toggle");
+filterBar.setAttribute("aria-label", "Filters");
+filterBar.title = "Filter tabs";
+filterBar.setAttribute("aria-expanded", "false");
+filterBar.setAttribute("aria-controls", "filter-controls");
+filterBar.append(icon("filters"));
+const filterControls = el("section", "filter-controls");
+filterControls.id = "filter-controls";
+filterControls.setAttribute("aria-label", "Search filters");
+filterControls.hidden = true;
+filterBar.onclick = () => {
+  filterControls.hidden = !filterControls.hidden;
+  filterBar.setAttribute("aria-expanded", String(!filterControls.hidden));
+  if (!filterControls.hidden) {
+    coverageDetails.hidden = true;
+    coverage.setAttribute("aria-expanded", "false");
+  }
+};
+const activeChips = el("div", "active-filters");
+activeChips.hidden = true;
+activeChips.setAttribute("aria-label", "Active filters");
+const resultsHeader = el("div", "results-header");
+const resultsLabel = el("span", "", "Recent tabs");
+const resultsCount = el("span", "result-count");
+resultsHeader.append(resultsLabel, resultsCount);
 const windowFilter = el("input");
 windowFilter.type = "checkbox";
 const bodyFilter = el("input");
@@ -146,9 +210,8 @@ filterControls.append(
   checkbox(bodyFilter, "Page text"),
   domainFilter,
   checkbox(exactFilter, "Exact host"),
-  button("Clear filters", async () => clearFilters()),
 );
-filterBar.append(filterSummary, filterControls);
+top.insertBefore(filterBar, exit);
 const filters = () => ({
   thisWindow: windowFilter.checked,
   pageText: bodyFilter.checked,
@@ -166,15 +229,22 @@ domainFilter.addEventListener("compositionend", () => {
 });
 const hints = el("span", "hint");
 hints.append(el("kbd", "", "↑↓"), " select  ", el("kbd", "", "↵"), " jump");
-const settingsButton = el("button", "quiet", "Settings");
+const settingsButton = el("button", "icon-button settings-toggle");
+settingsButton.setAttribute("aria-label", "Settings");
+settingsButton.title = "Settings";
+settingsButton.append(icon("settings"));
+const privacyNote = el("span", "local-note", "On this device");
+privacyNote.hidden = true;
 const live = el("span", "sr");
 live.setAttribute("aria-live", "polite");
-footer.append(coverage, hints, settingsButton);
+footer.append(coverage, hints, settingsButton, privacyNote);
 dialog.append(
   top,
   accessPrompt,
-  filterBar,
+  filterControls,
+  activeChips,
   coverageDetails,
+  resultsHeader,
   list,
   state,
   settings,
@@ -226,7 +296,35 @@ dialog.addEventListener("cancel", (e) => {
   e.preventDefault();
   if (inSettings) {
     showSearch();
+  } else if (!filterControls.hidden) {
+    filterControls.hidden = true;
+    filterBar.setAttribute("aria-expanded", "false");
+    filterBar.focus();
+  } else if (!coverageDetails.hidden) {
+    coverageDetails.hidden = true;
+    coverage.setAttribute("aria-expanded", "false");
+    coverage.focus();
   } else void close();
+});
+// Keep keyboard traversal in the palette, including when the browser would
+// otherwise move focus from the last native control into its toolbar.
+dialog.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab" || event.isComposing) return;
+  const controls = [
+    ...dialog.querySelectorAll<HTMLElement>(
+      'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary,[tabindex="0"]',
+    ),
+  ].filter((control) => control.getClientRects().length > 0);
+  const first = controls[0],
+    last = controls.at(-1);
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 // A native dialog retargets backdrop events to itself. Use viewport bounds,
 // and require the press to start outside so dragging out of the input is safe.
@@ -323,9 +421,10 @@ function render(response: SearchResponse) {
     selected = hits.findIndex((h) => h.id === priorId);
   list.replaceChildren();
   const hasQuery = tokenize(input.value).length > 0;
+  clearSearch.hidden = !input.value;
   const stateLabels: Record<Hit["state"], string> = {
     content: "",
-    "metadata-only": "Title & URL",
+    "metadata-only": "",
     indexing: "Indexing",
     unavailable: "Unavailable",
     stale: "Stale text",
@@ -341,8 +440,8 @@ function render(response: SearchResponse) {
     } catch {
       host = h.url;
     }
-    const icon = el("span", "site", (host[0] || "↗").toUpperCase());
-    icon.setAttribute("aria-hidden", "true");
+    const siteIcon = el("span", "site", (host[0] || "↗").toUpperCase());
+    siteIcon.setAttribute("aria-hidden", "true");
     const copy = el("div", "copy");
     const title = el("div", "title");
     title.title = h.title;
@@ -366,23 +465,32 @@ function render(response: SearchResponse) {
     );
     meta.title = h.url;
     copy.append(title, meta);
+    const evidenceTerms = h.matchedTerms ?? tokenize(input.value);
+    const titleWords = tokenize(h.title);
+    const titleExplains =
+      hasQuery &&
+      evidenceTerms.every((term) =>
+        titleWords.some((word) => word.startsWith(term)),
+      );
+    const bodyEvidence = h.snippet;
     const urlEvidence =
-      hasQuery && !h.snippet
+      hasQuery && !bodyEvidence && !titleExplains
         ? sourceSnippet(h.url, h.matchedTerms?.join(" ") ?? input.value)
         : "";
-    if (hasQuery && (h.snippet || urlEvidence)) {
+    if (hasQuery && (bodyEvidence || urlEvidence)) {
       const snippet = el("p", "snippet");
       snippet.append(
         highlighted(
-          h.snippet || "URL · " + urlEvidence,
+          bodyEvidence || "URL · " + urlEvidence,
           h.matchedTerms?.join(" ") ?? input.value,
         ),
       );
       copy.append(snippet);
     }
-    const actionHint = el("span", "row-action", "↵");
+    const actionHint = el("span", "row-action");
+    actionHint.append(icon("arrow"));
     actionHint.setAttribute("aria-hidden", "true");
-    row.append(icon, copy, actionHint);
+    row.append(siteIcon, copy, actionHint);
     row.onpointermove = () => {
       if (selected !== i) select(i);
     };
@@ -413,19 +521,78 @@ function render(response: SearchResponse) {
   );
   if (activeFilters())
     state.append(button("Clear filters", async () => clearFilters()));
-  filterSummary.textContent =
-    "Filters" +
-    (activeFilters()
-      ? ` · ${[windowFilter.checked && "This window", bodyFilter.checked && "Page text", domainFilter.value.trim() && domainFilter.value.trim() + (exactFilter.checked ? " (exact)" : " + subdomains")].filter(Boolean).join(" · ")}`
-      : "");
+  resultsLabel.textContent = hits[0]?.approximate
+    ? "Close matches"
+    : hasQuery
+      ? "Search results"
+      : "Recent tabs";
+  resultsCount.textContent = String(hits.length);
+  resultsHeader.hidden = !hits.length;
+  // Keep focused chips stable across polling; only rebuild when filter values change.
+  const chipSignature = JSON.stringify(filters());
+  if (activeChips.dataset.signature !== chipSignature) {
+    const hadChipFocus = activeChips.contains(document.activeElement);
+    activeChips.dataset.signature = chipSignature;
+    activeChips.replaceChildren();
+    const addChip = (label: string, remove: () => void) => {
+      const chip = button(label, async () => {
+        remove();
+        input.focus();
+        await update();
+      });
+      chip.className = "filter-chip";
+      chip.setAttribute("aria-label", "Remove " + label + " filter");
+      chip.append(icon("close"));
+      activeChips.append(chip);
+    };
+    if (windowFilter.checked)
+      addChip("This window", () => {
+        windowFilter.checked = false;
+      });
+    if (bodyFilter.checked)
+      addChip("Page text", () => {
+        bodyFilter.checked = false;
+      });
+    if (domainFilter.value.trim())
+      addChip(
+        domainFilter.value.trim() +
+          (exactFilter.checked ? " · exact" : " + subdomains"),
+        () => {
+          domainFilter.value = "";
+          exactFilter.checked = false;
+        },
+      );
+    if (activeFilters()) {
+      const clear = button("Clear filters", async () => clearFilters());
+      clear.className = "clear-filters quiet";
+      activeChips.append(clear);
+    }
+    activeChips.hidden = !activeFilters();
+    if (hadChipFocus) input.focus();
+  }
+  filterBar.dataset.active = String(activeFilters());
+  exactFilter.disabled = !domainFilter.value.trim();
   const nextCoverage = JSON.stringify([response.coverage, response.paused]);
   if (nextCoverage !== coverageSignature) {
     coverageSignature = nextCoverage;
     const restoreCoverageFocus = coverageDetails.contains(
       document.activeElement,
     );
-    coverageDetails.replaceChildren(
+    const coverageHeading = el("div", "panel-heading");
+    const closeCoverage = button("", async () => {
+      coverageDetails.hidden = true;
+      coverage.setAttribute("aria-expanded", "false");
+      coverage.focus();
+    });
+    closeCoverage.className = "icon-button";
+    closeCoverage.setAttribute("aria-label", "Close coverage details");
+    closeCoverage.append(icon("close"));
+    coverageHeading.append(
       el("strong", "", "Page text coverage"),
+      closeCoverage,
+    );
+    coverageDetails.replaceChildren(
+      coverageHeading,
       el(
         "p",
         "",
@@ -450,18 +617,16 @@ function render(response: SearchResponse) {
     const summary = new Map<string, number>();
     for (const entry of entries)
       summary.set(entry.reason, (summary.get(entry.reason) ?? 0) + 1);
-    coverageDetails.append(
-      el(
-        "p",
-        "",
-        [...summary]
-          .map(
-            ([reason, count]) =>
-              `${count} · ${descriptions[reason as keyof typeof descriptions]}`,
-          )
-          .join("; "),
-      ),
-    );
+    const coverageCounts = el("div", "coverage-counts");
+    for (const [reason, count] of summary) {
+      const pill = el(
+        "span",
+        "coverage-count",
+        `${count} ${descriptions[reason as keyof typeof descriptions]}`,
+      );
+      coverageCounts.append(pill);
+    }
+    coverageDetails.append(coverageCounts);
     if (response.paused)
       coverageDetails.append(
         button("Resume indexing", async () => {
@@ -471,7 +636,7 @@ function render(response: SearchResponse) {
       );
     // Details remain bounded even with many open tabs; choose a result's domain filter to narrow.
     for (const entry of entries
-      .filter((e) => e.reason !== "ready")
+      .filter((e) => !["ready", "paused"].includes(e.reason))
       .slice(0, 100)) {
       const row = el("div", "coverage-row");
       row.append(
@@ -531,6 +696,11 @@ function render(response: SearchResponse) {
   coverage.textContent = response.paused
     ? "Indexing paused"
     : `Page text · ${response.searchable} of ${response.total} tabs${response.indexing ? " · Indexing…" : ""}`;
+  coverage.dataset.status = response.paused
+    ? "paused"
+    : response.searchable === response.total && response.total > 0
+      ? "ready"
+      : "partial";
   const announcement = `${hits.length} ${hits[0]?.approximate ? "close matches" : "results"}.`;
   if (live.textContent !== announcement) live.textContent = announcement;
   document.documentElement.dataset.theme = response.theme;
@@ -574,7 +744,12 @@ input.onkeydown = (e) => {
 };
 function showSearch() {
   inSettings = false;
+  hints.hidden = false;
+  coverage.hidden = false;
+  privacyNote.hidden = true;
   filterBar.hidden = false;
+  resultsHeader.hidden = false;
+  activeChips.hidden = !activeFilters();
   accessPrompt.hidden = !explainAccess;
   settings.hidden = true;
   list.hidden = false;
@@ -593,7 +768,14 @@ function button(text: string, fn: () => Promise<unknown>) {
 }
 async function showSettings() {
   inSettings = true;
+  hints.hidden = true;
+  coverage.hidden = true;
+  privacyNote.hidden = false;
   filterBar.hidden = true;
+  filterControls.hidden = true;
+  filterBar.setAttribute("aria-expanded", "false");
+  activeChips.hidden = true;
+  resultsHeader.hidden = true;
   coverageDetails.hidden = true;
   coverage.setAttribute("aria-expanded", "false");
   accessPrompt.hidden = true;
@@ -608,7 +790,21 @@ async function showSettings() {
     const p = await request<Preferences>({ type: "settings" });
     const back = button("← Back to search", async () => showSearch());
     back.className = "back";
-    settings.append(back, el("h2", "", BRAND + " settings"));
+    settings.append(back, el("h2", "", "Settings"));
+    const feedback = el("div", "settings-feedback");
+    feedback.setAttribute("role", "status");
+    const confirm = (message: string) => {
+      feedback.textContent = message;
+    };
+    function group(title: string, copy: string) {
+      const section = el("details", "settings-group");
+      section.append(el("summary", "", title), el("p", "", copy));
+      settings.append(section);
+      return section;
+    }
+    const appearance = el("div", "settings-group setting-row");
+    const themeLabel = el("label", "", "Appearance");
+    themeLabel.htmlFor = "theme";
     const theme = el("select");
     theme.id = "theme";
     for (const t of ["system", "light", "dark"]) {
@@ -617,22 +813,62 @@ async function showSettings() {
       theme.append(option);
     }
     theme.value = p.theme;
-    const themeLabel = el("label", "", "Appearance");
-    themeLabel.htmlFor = theme.id;
-    settings.append(themeLabel, theme);
-    settings.append(
-      el("label", "", "Website access"),
+    theme.onchange = () => {
+      void (async () => {
+        const saved = await request<Preferences>({
+          type: "save",
+          theme: theme.value,
+          exclusions: p.exclusions,
+        });
+        p.theme = saved.theme;
+        document.documentElement.dataset.theme = saved.theme;
+        confirm("Appearance updated.");
+      })().catch(error);
+    };
+    appearance.append(themeLabel, theme);
+    settings.append(appearance);
+
+    const shortcut = (await chrome.commands.getAll()).find(
+      (c) => c.name === "open-search",
+    )?.shortcut;
+    const shortcutCard = el(
+      "section",
+      "settings-group" + (!shortcut ? " shortcut-missing" : ""),
+    );
+    const shortcutRow = el("div", "setting-row");
+    const shortcutActions = el("div", "shortcut-actions");
+    shortcutActions.append(
+      el("kbd", "shortcut-key", shortcut || "Not assigned"),
+      button(shortcut ? "Change" : "Set shortcut", async () => {
+        await chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+      }),
+    );
+    shortcutRow.append(el("span", "", "Keyboard shortcut"), shortcutActions);
+    shortcutCard.append(shortcutRow);
+    if (!shortcut)
+      shortcutCard.append(
+        el("p", "", "Choose a shortcut to open search from any Chrome tab."),
+      );
+    const shortcutHelp = el("details", "shortcut-help");
+    shortcutHelp.append(
+      el("summary", "", "Shortcut help"),
       el(
         "p",
         "",
-        "Page contents stay on this device. Access is optional: titles and URLs remain searchable without it. All-site access allows reading sensitive readable text across your open websites.",
+        "Suggested: Control+Space on Mac; Ctrl+Shift+Space on Windows. Set Search open tabs for this copy of TabScope. macOS can reserve Control+Space for input sources; choose another combination if needed.",
       ),
+    );
+    shortcutCard.append(shortcutHelp);
+    settings.append(shortcutCard);
+
+    const website = group(
+      "Website access",
+      "Optional access lets you search readable page text, which can include sensitive information. Titles and URLs always work. Everything stays on this device.",
     );
     const origin = el("input");
     origin.id = "site-access";
     origin.placeholder = "example.com";
     origin.setAttribute("aria-label", "Website hostname for access");
-    settings.append(origin, el("div", "actions"));
     const access = el("div", "actions");
     access.append(
       button("Allow this site", async () => {
@@ -642,87 +878,82 @@ async function showSettings() {
           origins: ["https://" + host + "/*", "http://" + host + "/*"],
         });
         if (!granted)
-          throw Error(
-            "Access was not granted. Metadata search is still available.",
-          );
+          throw Error("Access was not granted. Titles and URLs still work.");
         await request({ type: "refresh" });
+        confirm("Website access updated.");
       }),
-      button("Allow all websites", chooseAllWebsites),
+      button("Allow all websites", async () => {
+        await chooseAllWebsites();
+        confirm("Website access updated.");
+      }),
       button("Revoke website access", async () => {
         const all = await chrome.permissions.getAll();
         if (all.origins?.length)
           await chrome.permissions.remove({ origins: all.origins });
         await request({ type: "refresh" });
+        confirm("Website access removed. Titles and URLs still work.");
       }),
     );
-    settings.append(access);
+    website.append(origin, access);
+
+    const excludedSites = group(
+      "Excluded sites",
+      "Keep selected sites out of page-text search. One hostname per line; subdomains are included. Saving removes their indexed text.",
+    );
     const exclusions = el("textarea");
     exclusions.id = "exclusions";
     exclusions.value = p.exclusions.join("\n");
-    const exclusionLabel = el("label", "", "Excluded sites");
-    exclusionLabel.htmlFor = exclusions.id;
-    settings.append(
-      exclusionLabel,
-      el(
-        "p",
-        "",
-        "One hostname per line. example.com includes all subdomains; sub.example.com includes only itself and its subdomains. Saving removes matching indexed text immediately.",
-      ),
+    exclusions.setAttribute("aria-label", "Excluded sites");
+    excludedSites.append(
       exclusions,
-      button("Save preferences", async () => {
-        const raw = exclusions.value
+      button("Save excluded sites", async () => {
+        const hosts = exclusions.value
           .split(/\n/)
           .map((s) => s.trim())
-          .filter(Boolean);
-        const hosts = raw.map(normalizeHost);
+          .filter(Boolean)
+          .map(normalizeHost);
         if (hosts.some((h) => !h))
           throw Error("Use hostnames only, without paths or wildcards.");
-        await request({
+        const saved = await request<Preferences>({
           type: "save",
-          theme: theme.value,
+          theme: p.theme,
           exclusions: [...new Set(hosts)],
         });
-        document.documentElement.dataset.theme = theme.value;
+        p.exclusions = saved.exclusions;
         alert.hidden = true;
+        confirm("Excluded sites saved.");
       }),
     );
-    settings.append(
-      el("label", "", "Local data"),
-      el(
-        "p",
-        "",
-        "Extracted text is held for this browser session. Clearing removes text and pauses indexing until you resume. Theme and exclusions are retained.",
-      ),
+
+    const local = group(
+      "Local data",
+      "Page text is kept for this browser session. Clearing removes text and pauses indexing. Your preferences stay saved.",
     );
     const data = el("div", "actions");
+    const clear = button("Clear data & pause", async () => {
+      await request({ type: "clear" });
+      coverage.textContent = "Indexing paused";
+      alert.hidden = true;
+      confirm("Page text cleared. Indexing is paused.");
+    });
+    clear.className = "danger";
     data.append(
-      button("Clear data & pause", async () => {
-        await request({ type: "clear" });
-        coverage.textContent = "Indexing paused";
-        alert.hidden = true;
-      }),
+      clear,
       button("Resume indexing", async () => {
         await request({ type: "resume" });
         coverage.textContent = "Indexing…";
+        confirm("Indexing resumed.");
       }),
     );
-    const shortcut = (await chrome.commands.getAll()).find(
-      (command) => command.name === "open-search",
-    )?.shortcut;
-    settings.append(
-      data,
-      el("label", "", "Keyboard shortcut"),
+    local.append(data);
+    website.append(
       el(
         "p",
-        "",
-        `Current shortcut: ${shortcut || "Not assigned"}. Suggested: Control+Space (⌃Space) on Mac; Ctrl+Shift+Space on Windows. Works while Chrome is focused. Change it at chrome://extensions/shortcuts. macOS may reserve Control+Space for input sources; choose another shortcut there if needed.`,
-      ),
-      el(
-        "p",
-        "",
-        "Only loaded, permitted top-level website text is searched. PDFs, browser pages, embedded frames, images and unloaded content are not content-searchable.",
+        "settings-limit",
+        "Only loaded, permitted page text is searched. PDFs, frames, images and unloaded content aren't included.",
       ),
     );
+    settings.append(feedback);
     back.focus();
   } catch (e) {
     error(e);

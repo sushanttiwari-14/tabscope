@@ -1,56 +1,41 @@
 # TabScope design system
 
-Brand lives in manifest.json, src/brand.ts, and this document. Compact, calm, content first. No promotional screen.
+## Direction
 
-## References and decisions
+A calm search palette: one obvious field, useful results, secondary controls revealed when needed. Borrow clarity, hierarchy and compact scope controls from [Apple’s search-field guidance](https://developer.apple.com/design/human-interface-guidelines/search-fields) and [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/). This is an adaptation for a Chrome extension, not a claim of native Apple UI or conformance certification. Keep all assets local and all search on-device.
 
-Reviewed official [Spotlight guidance](https://support.apple.com/en-ke/guide/mac-help/mchlp1008/mac), [Raycast quickstart](https://manual.raycast.com/quickstart), and [Linear UI redesign](https://linear.app/now/how-we-redesigned-the-linear-ui). Borrow immediate keyboard focus and a single task from Spotlight; predictable arrow/return interaction from Raycast; quiet surfaces and consistent alignment from Linear. These are design references, not usability research.
+## Surface and typography
 
-## Typography
+`src/styles/tokens.css` is authoritative. Use the system font stack, including the platform system font on macOS. The search field is 23px with slightly tightened tracking; result titles are 14px/20px at weight 500, metadata 12px/16px, snippets 12px/19px, and secondary controls 11px. Match emphasis uses a quiet blue-grey fill and semibold text.
 
-System fonts only: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif. Input 19/28px weight 400, tracking -.3px; title 14/20 weight 600 tracking -.1px; snippet 13/20 weight 400; metadata 12/16 weight 400; footer/shortcuts 11/16 weight 400; state heading 16/24 weight 600; state copy 13/20. Shortcut labels use ui-monospace, monospace. Body 13/20. No downloaded fonts.
+Light surfaces use #fafafa, primary text #242426, secondary text #66666d and accent #0066cc. Dark surfaces use #252527, primary text #f5f5f7, secondary text #acacb4 and accent #91bcff. A very subtle highlight gradient, fine shell border and layered shadows provide depth. Content stays opaque for readable text; the existing page backdrop is 35% black with 6px blur. Never blur result text or animate the backdrop.
 
-## Tokens and themes
+The palette is at most 660px wide with a 24px radius; result rows use 12px corners and 32px local site monograms. The header has 22px/24px padding and a large unboxed input. The list shrinks and scrolls independently; header and footer remain visible. At narrow widths, controls wrap, secondary keyboard hints disappear, and the dialog fits within the dynamic viewport.
 
-`src/styles/tokens.css` is the source for exact values. Light: canvas #f3f4f7, surface #fff, text #242831, muted #606875, border #e7e9ee, selected #f1f3f7, accent/focus #5366b5, match #fff0b3, error #b12d3c, success #28704d. Dark: canvas #191c21, surface #24272d, text #f0f2f6, muted #a6adba, border #353a43, selected #30353e, accent/focus #b0bde8, match #66551b, error #ff9aa6, success #8bd5aa. Focus 2px solid accent with 2px offset on controls; the main search field uses a visible 2px accent rule under the header instead of a rectangular input outline. Match uses normal theme text. Dim backdrop black 35% with 6px backdrop blur; layered shadow 0 24px 80px black 20% plus 0 4px 16px black 8% (dark: 40% / 15%). Opaque content ensures predictable readability. Follow system unless preference light/dark selected. Text targets WCAG AA 4.5:1 normal / 3:1 large; visible focus and selected outline do not depend on color alone.
+## Search hierarchy
 
-## Geometry
+Default view: search icon, field, Filters icon and Escape; a quiet Recent tabs label and count; compact title/site rows; coverage and Settings in a small footer. No permanent filter bar, repetitive Title & URL badges, decorative dashboard or account controls. Empty queries never show body excerpts.
 
-4px scale: 4, 8, 12, 16, 20, 24, 32. Palette 640px wide max, viewport minus 24px at narrow sizes; top 14vh with max height min(680px, 80vh). Search padding 20px, input minimum height 32; list padding 12px; row padding 12px, icon 32px, gap 12px, row radius 14px. Palette radius 24px, separator 1px. The page stays visible behind the palette; only the modal surface is opaque. Result title single line ellipsis; snippet two lines; URL one line. Metadata wraps if necessary. Footer padding 8px 16px. Settings is a view inside the same palette, scrollable. Buttons minimum 32px high. Narrow widths hide secondary footer hints; no horizontal scroll. All layout/color/type styles consume semantic tokens (including size tokens).
+A Clear search control appears only while the query has text. Results update immediately. Search results and Close matches labels explain the current mode. Only the selected result exposes the return arrow. Titles that already explain every query term do not need a weak partial body excerpt or navigation target. URL evidence appears only when it helps explain a match.
 
-## Motion
+## Progressive disclosure
 
-Opening opacity and translateY(4px) 140ms ease-out. Selection/hover background 120ms; status opacity 140ms. Closing immediate to preserve focus. Results update immediately; never animate reordering or delay input/navigation. prefers-reduced-motion disables transitions and entrance animation. No spring or decorative effects.
+Filters open from the header button. This window and Page text use native checkboxes in compact controls; the website field and Exact host remain simple parsed-host filters. Exact host is disabled until a hostname is entered. Active filters appear as individually removable chips; Clear filters preserves the query. Closing the filter controls leaves active chips visible. Escape closes the open panel first, restores its trigger, then dismisses the palette on a subsequent Escape.
 
-## States and examples
+The coverage footer is a button with an explicit expanded state and controls association. It opens a bounded explanation with compact reason counts and relevant tab recovery actions. Paused indexing offers one Resume action instead of repeating the same paused message for every tab. A close control and Escape return focus to coverage. Coverage and filters do not compete as simultaneously open panels.
 
-Main: [scope glyph] [Search your open tabs…] [esc]\nseparator\n[32px neutral site initial] Title / hostname / two-line real snippet when searching / selected return hint\nseparator\n[Page text · 12 of 18 tabs] [↑↓ select] [↵ jump] [Settings]. Empty input lists compact title/hostname rows without page excerpts; snippets appear when a keyword query is entered. No synthetic results. No results: “No matching tabs” / “Try different words. Only permitted, loaded text is searched.” Permission: coverage remains visible, Settings offers explicit per-site/all-site access. Indexing: “Indexing…” alongside coverage. Metadata-only / stale / unavailable / excluded are row labels. Error uses concise text and retry through the next query. Paused: persistent “Indexing paused” and Resume. Settings: theme, access explanation, origin input and grant buttons, exclusions textarea, clear and pause, resume, shortcut guidance.
+Settings show Appearance and the actual assigned shortcut first. A missing assignment receives a clear Set shortcut action that opens Chrome’s own shortcut page on deliberate activation. Website access, excluded sites and local data are separate native disclosures. Appearance saves immediately with a short status; excluded sites have their own explicit Save action. Privacy and permission consequences remain visible beside their controls. Search query and filters survive returning from Settings.
 
-## Accessibility and behavior
+## Motion and interaction
 
-Native modal dialog in extension document, with visible product label. Search combobox controls listbox with aria-activedescendant; options expose selected state. Polite live count/coverage; alert for navigation failures. Keyboard arrows only intercepted outside IME; Enter activates selected result; Escape exits settings then closes. Tab stays within native modal, close restores page focus through content controller. Pointer hover changes selection only on actual pointer move, click activates. Input receives immediate focus; repeated invocation refocuses existing palette. At 200% zoom and narrow viewports list and settings scroll, controls wrap. UI iframe has descriptive title. Host page can interfere with overlay: fallback extension window offers an isolated surface.
+Use the springy-motion skill’s restrained Snap press recipe: a 0.97 press scale, 180ms ease-out recovery. Palette entrance is a small 5px/0.985 scale-and-fade over 180ms. Panels reveal by 3px/fade over 160ms. No bouncing result rows, animated ranking, staggered typing or delayed navigation. Reduced Motion removes travel and scaling, retaining only a 100ms dissolve and immediate state feedback. Animate transform and opacity only; no dependencies are needed.
 
-## First-open access choice
+## Accessibility
 
-One inline section below the search field explains local content search and the sensitivity of readable text. Uses surface/canvas/text tokens, 16px/20px padding, 14px semibold heading, 13/20 body, and existing 32px buttons. “Allow all websites” and “Titles & URLs only” are explicit choices. No automatic permission request, blocking welcome screen, focus theft, or recurring prompt. A grant, denial, or metadata-only choice is remembered; existing all-site users see no prompt. Settings remains the place to change or revoke access.
+The native modal has an accessible name and an explicit Tab/Shift+Tab boundary loop. Search uses combobox/listbox semantics and aria-activedescendant. Icon controls have accessible names and native hover titles. Controls have a visible 2px focus ring; selection also has a return indicator and aria-selected. Main-field focus accents the search glyph without a distracting full-width rule. IME composition remains native; live counts only change when their information changes. Background clicks are consumed before dismissal and the original page focus is restored.
 
-Palette uses a flex column: search, access explanation and footer stay visible; result/settings lists shrink with min-height:0 and scroll within the remaining height. This prevents the one-time access explanation from clipping the footer on narrow viewports.
+Measured text contrasts: light secondary on surface 5.46:1, selection 4.83:1, footer 5.19:1; dark secondary on surface 6.79:1 and selection 5.26:1; white primary-button text 4.70:1. These pairs are checks, not a complete accessibility audit. Native screen readers and actual 200%/400% browser zoom still need manual verification.
 
-## Floating overlay surface
+## Evidence
 
-The injected iframe uses a dedicated overlay.html with transparent root and body from first paint. Both iframe element and embedded overlay document use normal color-scheme to prevent Chrome from painting an opaque dark canvas when schemes differ; palette colors still follow shared semantic theme tokens. Only the host backdrop dims/blurs the underlying page (black 35%, blur 6px). Inline host layout/backdrop values are read from the bundled shared tokens so host CSP/style rules cannot hide the overlay. Dialog-container outline is suppressed while input/button focus indicators stay visible. No new tab or navigation on supported pages; Chrome toolbar and other applications remain outside the page overlay. Restricted pages retain the extension-window fallback.
-
-## Outside-click dismissal
-
-Clicking the dimmed page backdrop dismisses the overlay from search or Settings and restores previous page focus. Clicking inside or dragging from an input to outside does not dismiss it. Only a primary-button press and release that both occur outside the dialog count; canceled pointers are ignored. The backdrop consumes the click so controls on the page underneath are not accidentally activated. Escape remains available. Standalone fallback windows are unaffected by clicks in other applications.
-
-## Minimal visual refinement
-
-Use a 24px outer radius, 14px result rows, 10px controls/site icons, and 6px shortcut keys. Surfaces are neutral rather than saturated blue: selected light #f1f3f7 / dark #30353e, selected border #dde2eb / #434b59, hover #f5f6f9 / #2c3038, site tiles #f0f2f6 / #2c3139, selected tiles #e5e9f2 / #3b4350, footer #fafbfc / #21242a, keys #f0f2f5 / #2d323a, scrollbar #c4cad4 / #535d6b. A right-aligned return glyph appears on the selected row, supplementing color and aria-selected. Search uses a locally constructed 20px SVG magnifier; no remote icons. Empty-query rows omit snippets to reduce visual noise; keyword results retain two-line source excerpts. Content rows show hostname without repeated Content labels; limited text is labeled Partial text and metadata-only is Title & URL. Preserve coverage as Page text · X of Y tabs. Existing shortcuts, dismissal, permissions and ranking remain unchanged.
-
-
-## Search recovery and filters (2026-11-08)
-
-A compact collapsed Filters disclosure sits below search. It offers This window, Page text, a hostname and Exact host; the summary names active filters and Clear filters preserves the query. Controls wrap at narrow widths, use theme surfaces/focus indicators, and stay within the native dialog. No persistent advanced panel or query language is added. Close matches are labeled per row; highlighting marks the actual matched alternative words.
-
-The existing coverage summary is now a button with aria-expanded/aria-controls. It reveals a small scrollable explanation, grouped reason counts and at most 100 tab recovery rows. Normal rows remain quiet; detailed reasons belong in the disclosure. Live result counts update only when the count/match mode changes. Destination feedback uses a short-lived dismissible status without reopening search; prohibited injection uses the extension action badge/title. Filter and coverage disclosures share the existing rounded neutral visual language.
+The feature smoke script uses real extension responses and a localhost-only fixture installation grant. It exercises chip removal, clear-query behavior, forward/reverse focus traversal, Escape hierarchy, grouped settings, theme persistence and search/navigation. Captures wait for animations to finish. See [light search](screenshots/palette-search-light.png), [dark search](screenshots/palette-search-dark.png), [narrow filters](screenshots/palette-filters-narrow.png) and [Settings](screenshots/palette-settings-dark.png). Images contain controlled fixtures, not personal browsing data.

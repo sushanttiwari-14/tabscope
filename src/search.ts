@@ -265,7 +265,20 @@ export class SearchIndex {
           .map((id) => ({ id, score: 0, terms: [] as string[] }));
     const hits = ranked.map((item) => {
       const r = this.records.get(item.id)!;
-      const p = passage(r.text, item.terms, this.spans.get(r.id));
+      let p = passage(r.text, item.terms, this.spans.get(r.id));
+      const titleWords = tokenize(r.title);
+      const bodyWords = tokenize(p?.text ?? "");
+      // A complete title match needs no weak body evidence or navigation target.
+      if (
+        item.terms.length &&
+        item.terms.every((term) =>
+          titleWords.some((word) => word.startsWith(term)),
+        ) &&
+        !item.terms.every((term) =>
+          bodyWords.some((word) => word.startsWith(term)),
+        )
+      )
+        p = undefined;
       return {
         ...item,
         score:

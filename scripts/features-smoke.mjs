@@ -7,6 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 const temp = await mkdtemp(path.join(os.tmpdir(), "tabscope-features-"));
+const evidence = path.resolve(
+  process.env.TABSCOPE_EVIDENCE || "work/features-browser",
+);
+await mkdir(evidence, { recursive: true });
 await cp("dist", path.join(temp, "extension"), { recursive: true });
 const manifestPath = path.join(temp, "extension", "manifest.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -45,6 +49,7 @@ try {
   await ui.evaluate(() =>
     chrome.storage.local.set({ contentAccessExplained: true }),
   );
+  await ui.reload();
   const call = (m) => ui.evaluate((m) => chrome.runtime.sendMessage(m), m);
   const worker = context.serviceWorkers()[0];
   const tab = await worker.evaluate(
@@ -79,6 +84,162 @@ try {
   });
   assert.equal(fuzzy.hits[0].id, tab.id);
   assert.equal(fuzzy.hits[0].approximate, true);
+  // Real-response UX regression checks: no synthetic search renderer data.
+  const capture = async (name) => {
+    await ui.locator("dialog").evaluate(async (dialog) => {
+      await Promise.all(
+        dialog
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+    });
+    await ui.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    await ui.screenshot({ path: path.join(evidence, name + ".png") });
+    const bounds = await ui.locator("dialog").boundingBox();
+    if (bounds)
+      await ui.screenshot({
+        path: path.join(evidence, name + "-detail.png"),
+        clip: {
+          x: Math.max(0, bounds.x - 24),
+          y: Math.max(0, bounds.y - 24),
+          width: Math.min(
+            1000,
+            bounds.width + 48,
+            (await ui.evaluate(() => innerWidth)) - Math.max(0, bounds.x - 24),
+          ),
+          height: Math.min(
+            bounds.height + 48,
+            (await ui.evaluate(() => innerHeight)) - Math.max(0, bounds.y - 24),
+          ),
+        },
+      });
+  };
+  await ui.setViewportSize({ width: 1000, height: 820 });
+  await ui.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  assert.equal(
+    await ui
+      .getByRole("region", { name: "Search filters", exact: true })
+      .isVisible(),
+    false,
+  );
+  assert.equal(await ui.locator(".active-filters").isVisible(), false);
+  await ui.getByRole("combobox").fill("event horizon");
+  await ui
+    .getByRole("option")
+    .filter({ hasText: "Observatory notes" })
+    .locator(".snippet")
+    .waitFor();
+  await capture("search-light");
+  await ui.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await capture("search-dark");
+  await ui.getByRole("button", { name: "Clear search", exact: true }).click();
+  await ui.getByText("Recent tabs", { exact: true }).waitFor();
+  assert.equal(await ui.getByRole("combobox").inputValue(), "");
+  assert.equal(await ui.locator(".snippet").count(), 0);
+  await capture("recent-dark");
+
+  await ui.getByRole("combobox").fill("event horizon");
+  await ui.getByRole("button", { name: "Filters", exact: true }).click();
+  assert.equal(
+    await ui
+      .getByRole("checkbox", { name: "Exact host", exact: true })
+      .isEnabled(),
+    false,
+  );
+  await ui.getByRole("checkbox", { name: "Page text", exact: true }).check();
+  await ui.getByRole("checkbox", { name: "This window", exact: true }).check();
+  await ui
+    .getByRole("textbox", { name: /Website hostname \(includes/ })
+    .fill("127.0.0.1");
+  await ui.waitForFunction(
+    () =>
+      document.querySelectorAll("[role=option]").length === 1 &&
+      document.querySelectorAll(".filter-chip").length === 3,
+  );
+  await capture("filters-dark");
+  await ui.setViewportSize({ width: 390, height: 720 });
+  await capture("filters-narrow");
+  assert.equal(
+    await ui.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+  );
+  await ui.keyboard.press("Escape");
+  assert.equal(
+    await ui
+      .getByRole("region", { name: "Search filters", exact: true })
+      .isVisible(),
+    false,
+  );
+  assert.equal(
+    await ui
+      .getByRole("button", { name: "Filters", exact: true })
+      .getAttribute("aria-expanded"),
+    "false",
+  );
+  assert.equal(await ui.getByRole("combobox").inputValue(), "event horizon");
+  await ui
+    .getByRole("button", { name: "Remove Page text filter", exact: true })
+    .click();
+  await ui.waitForFunction(
+    () => document.querySelectorAll("[role=option]").length === 2,
+  );
+  assert.equal(await ui.getByRole("combobox").inputValue(), "event horizon");
+  await ui.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await ui.waitForFunction(
+    () => document.querySelector(".active-filters").hidden,
+  );
+  // Native dialog focus stays contained through keyboard traversal.
+  for (let step = 0; step < 16; step++) {
+    await ui.keyboard.press(step < 8 ? "Tab" : "Shift+Tab");
+    assert.equal(
+      await ui.evaluate(() =>
+        document.querySelector("dialog").contains(document.activeElement),
+      ),
+      true,
+    );
+  }
+  await ui.setViewportSize({ width: 1000, height: 820 });
+  await ui.getByRole("button", { name: "Settings", exact: true }).click();
+  await ui.getByRole("heading", { name: "Settings", exact: true }).waitFor();
+  assert.equal(
+    await ui
+      .getByRole("button", { name: "Allow all websites", exact: true })
+      .isVisible(),
+    false,
+  );
+  await capture("settings-dark");
+  await ui.getByText("Excluded sites", { exact: true }).click();
+  await ui
+    .getByRole("textbox", { name: "Excluded sites", exact: true })
+    .fill("excluded.example.test");
+  await ui
+    .getByRole("button", { name: "Save excluded sites", exact: true })
+    .click();
+  await ui.getByText("Excluded sites saved.", { exact: true }).waitFor();
+  await ui.getByLabel("Appearance", { exact: true }).selectOption("light");
+  await ui.getByText("Appearance updated.", { exact: true }).waitFor();
+  assert.deepEqual((await call({ type: "settings" })).exclusions, [
+    "excluded.example.test",
+  ]);
+  await capture("settings-light");
+  await ui
+    .getByRole("textbox", { name: "Excluded sites", exact: true })
+    .fill("");
+  await ui
+    .getByRole("button", { name: "Save excluded sites", exact: true })
+    .click();
+  await ui.getByText("Excluded sites saved.", { exact: true }).waitFor();
+  await ui.getByLabel("Appearance", { exact: true }).selectOption("system");
+  await ui.getByText("Appearance updated.", { exact: true }).waitFor();
+  await ui
+    .getByRole("button", { name: "← Back to search", exact: true })
+    .click();
+  assert.equal(await ui.getByRole("combobox").inputValue(), "event horizon");
   // Actual navigation and CSS Highlight range in a split-node passage.
   assert.equal(
     (
@@ -182,7 +343,7 @@ try {
     .getByRole("button", { name: "Resume indexing", exact: true })
     .waitFor();
   await ui.setViewportSize({ width: 360, height: 640 });
-  await ui.locator("summary").click();
+  await ui.getByRole("button", { name: "Filters", exact: true }).click();
   await ui
     .getByRole("textbox", { name: /Website hostname \(includes/ })
     .fill("bad/path");
@@ -195,10 +356,6 @@ try {
     await ui.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     true,
   );
-  const evidence = path.resolve(
-    process.env.TABSCOPE_EVIDENCE || "work/features-browser",
-  );
-  await mkdir(evidence, { recursive: true });
   await ui.screenshot({ path: path.join(evidence, "coverage-narrow.png") });
   const targetFor = async (url) =>
     (
@@ -313,6 +470,11 @@ try {
           "cross-window fallback filtering",
           "excluded/paused coverage",
           "narrow layout",
+          "filter chips and Escape dismissal",
+          "clear query and recent-state hierarchy",
+          "dialog keyboard focus containment",
+          "grouped settings and immediate theme persistence",
+          "weak body evidence suppressed for complete title matches",
           "rapid invocation/query preservation",
           "initializer-free shell timeout cleanup",
           "restricted singleton fallback",

@@ -70,10 +70,14 @@ try {
     0,
   );
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByText("Website access", { exact: true }).click();
   await page
     .getByRole("button", { name: "Allow all websites", exact: true })
     .waitFor();
-  await page.getByText(/Current shortcut:.*Space/).waitFor();
+  assert.equal(
+    await page.locator(".shortcut-key").textContent(),
+    command.shortcut,
+  );
   console.log(
     "PASS: fresh-profile explanation, no automatic grant, metadata-only dismissal, restart persistence, and Settings access",
   );

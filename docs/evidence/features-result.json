@@ -13,6 +13,11 @@
     "cross-window fallback filtering",
     "excluded/paused coverage",
     "narrow layout",
+    "filter chips and Escape dismissal",
+    "clear query and recent-state hierarchy",
+    "dialog keyboard focus containment",
+    "grouped settings and immediate theme persistence",
+    "weak body evidence suppressed for complete title matches",
     "rapid invocation/query preservation",
     "initializer-free shell timeout cleanup",
     "restricted singleton fallback"

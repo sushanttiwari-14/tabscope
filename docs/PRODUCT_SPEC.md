@@ -6,7 +6,7 @@ Chrome desktop, current profile, normal windows: command/icon → immediate inpu
 
 ## Interaction
 
-Suggested shortcut Control+Space on Mac (manifest MacCtrl+Space), Ctrl+Shift+Space on Windows/default; assignment may conflict and is not guaranteed. Change at chrome://extensions/shortcuts. Reinvoke refocuses, never duplicates. Arrow keys select, Enter jumps, Escape closes/restores focus. IME and normal editing remain native. Newest request alone may render. Settings remains within palette. Restricted pages use an extension-owned popup window.
+Suggested shortcut Control+Space on Mac (manifest MacCtrl+Space), Ctrl+Shift+Space on Windows/default; assignment may conflict and is not guaranteed. Change at chrome://extensions/shortcuts. Reinvoke refocuses, never duplicates. Arrow keys select, Enter jumps, Escape closes/restores focus. IME and normal editing remain native. Newest request alone may render. Settings remains within palette, with immediate Appearance saving, visible current-shortcut setup, and separate disclosures for access, exclusions and local data. Restricted pages use an extension-owned popup window.
 
 ## Support
 
@@ -28,7 +28,7 @@ Passages favor distinct terms, then adjacent query-order phrases, then tighter p
 
 If normal exact/prefix search has no eligible matches, bounded edit-distance recovery returns separately labeled Close matches. Short tokens remain exact; tokens of length 4–7 allow one edit, 8–40 two. No fuzzy recovery for queries consisting only of tokens shorter than four. Recovery inspects at most 500 eligible records, 2M text units, 12,000 distinct candidate tokens, and eight alternatives per query token; it can omit matches outside those bounds. No exact/fuzzy mixing.
 
-Filters combine before result limits: This window captures the invoking browser window even for fallback; Page text requires every query term in the body; Website parses a hostname, includes real subdomains by default, and offers Exact host. Invalid host input produces a filtered-empty state. IDNs use URL hostname conversion. Filters are scoped to the palette session and can be cleared without clearing the query.
+Filters combine before result limits: This window captures the invoking browser window even for fallback; Page text requires every query term in the body; Website parses a hostname, includes real subdomains by default, and offers Exact host. Invalid host input produces a filtered-empty state. IDNs use URL hostname conversion. Filters are scoped to the palette session and can be cleared without clearing the query. A header button reveals their controls; active filters remain visible as removable chips. Escape dismisses the current filter/coverage panel before closing search. A Clear search button resets the query without clearing filters.
 
 Coverage details distinguish permission missing/withheld (Chrome cannot tell those apart through contains), exclusion, sleeping tab, known restrictions/unsupported MIME type, pending extraction, failed extraction, stale text, budget eviction, extraction caps, and pause. Unknown injection failure is reported as failed or unsupported rather than inventing a cause. Recovery requests revalidate URL, permission, pause and exclusion; per-tab retries have a 30-second cooldown. Budget/failure records are not automatically refreshed. Clearing removes body text and pauses indexing while metadata search remains available.
 
