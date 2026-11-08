@@ -49,12 +49,15 @@ async function setup() {
       update: async () => {
         if (failActivate) throw Error("window disappeared");
       },
-      sendMessage: async () => true,
+      sendMessage: vi.fn(async () => true),
+      onActivated: event(),
       onRemoved: event(),
       onReplaced: event(),
       onUpdated: event(),
     },
     windows: {
+      getAll: async () => [],
+      create: vi.fn(async () => ({ id: 99 })),
       update: async () => {
         if (failActivate) throw Error("window disappeared");
       },
@@ -114,7 +117,7 @@ describe("background lifecycle integration", () => {
     await send({ type: "refresh" });
     let result = await send({ type: "search", query: "orbital ceramic" });
     expect(result.hits).toHaveLength(1);
-    expect(session.schema).toBe(1);
+    expect(session.schema).toBe(2);
     await setup();
     result = await send({ type: "search", query: "orbital ceramic" });
     expect(result.hits).toHaveLength(1);
@@ -186,7 +189,9 @@ describe("background lifecycle integration", () => {
     expect(
       (await send({ type: "search", query: "ceramic" })).hits,
     ).toHaveLength(0);
-    expect(session.records).toBeUndefined();
+    expect((session.records as { text: string }[]).every((r) => !r.text)).toBe(
+      true,
+    );
     expect((local.preferences as { paused: boolean }).paused).toBe(true);
   });
   it("rejects webpage search messages and reports failed navigation", async () => {
@@ -208,4 +213,400 @@ describe("background lifecycle integration", () => {
       (await send({ type: "navigate", id: 1, query: "ceramic" })).error,
     ).toContain("window disappeared");
   });
+});
+
+describe("coverage and new message boundaries", () => {
+  it("keeps metadata through pause, permissions, exclusion, sleeping and restricted states", async () => {
+    const reason = async () =>
+      (
+        (await send({ type: "search", query: "" })).coverage as {
+          reason: string;
+        }[]
+      )[0].reason;
+    grant = false;
+    expect(await reason()).toBe("permission");
+    expect(
+      (await send({ type: "search", query: "Unrelated" })).hits,
+    ).toHaveLength(1);
+    grant = true;
+    await send({ type: "save", theme: "system", exclusions: ["example.com"] });
+    expect(await reason()).toBe("excluded");
+    expect(
+      (
+        await send({
+          type: "recover",
+          action: "include",
+          id: 1,
+          url: tabs[0].url,
+        })
+      ).error,
+    ).toBeUndefined();
+    await send({ type: "search", query: "" });
+    tabs[0].discarded = true;
+    expect(await reason()).toBe("sleeping");
+    tabs[0].url = "chrome://settings";
+    expect(await reason()).toBe("restricted");
+    await send({ type: "clear" });
+    expect(await reason()).toBe("paused");
+    expect(
+      (await send({ type: "search", query: "Unrelated" })).hits,
+    ).toHaveLength(1);
+  });
+  it("classifies extraction failure, allows a bounded retry and refuses stale recovery", async () => {
+    const script = chromeMock.scripting as {
+      executeScript: ReturnType<typeof vi.fn>;
+    };
+    script.executeScript = vi.fn(async () => {
+      throw Error("blocked");
+    });
+    await send({ type: "refresh" });
+    const response = await send({ type: "search", query: "" });
+    expect((response.coverage as { reason: string }[])[0].reason).toBe(
+      "failure",
+    );
+    const count = script.executeScript.mock.calls.length;
+    await send({ type: "refresh" });
+    await send({ type: "search", query: "" });
+    expect(script.executeScript.mock.calls.length).toBe(count);
+    expect(
+      (
+        await send({
+          type: "recover",
+          action: "retry",
+          id: 1,
+          url: "https://wrong.test",
+        })
+      ).error,
+    ).toContain("changed");
+    expect(
+      (
+        await send({
+          type: "recover",
+          action: "retry",
+          id: 1,
+          url: tabs[0].url,
+        })
+      ).error,
+    ).toBeUndefined();
+    await send({ type: "search", query: "" });
+    expect(
+      (
+        await send({
+          type: "recover",
+          action: "retry",
+          id: 1,
+          url: tabs[0].url,
+        })
+      ).error,
+    ).toContain("wait");
+    await send({ type: "clear" });
+    expect(
+      (
+        await send({
+          type: "recover",
+          action: "retry",
+          id: 1,
+          url: tabs[0].url,
+        })
+      ).error,
+    ).toContain("Resume");
+  });
+  it("rejects malformed filters/recovery, and denies recovery from page scripts", async () => {
+    expect(
+      (await send({ type: "search", query: "", filters: { domain: [] } }))
+        .error,
+    ).toContain("Invalid filters");
+    expect(
+      (await send({ type: "search", query: "", filters: { pageText: "yes" } }))
+        .error,
+    ).toContain("Invalid filters");
+    expect(
+      (await send({ type: "recover", action: "eval", id: 1 })).error,
+    ).toContain("Invalid recovery");
+    expect(
+      (await send({ type: "recover", action: "load", id: 1 }, tabs[0].url))
+        .error,
+    ).toContain("Unauthorized");
+    expect(await send({ type: "overlay-ready", invocation: "old" })).toBe(
+      false,
+    );
+  });
+  it("tracks activation recency and retains it across worker initialization", async () => {
+    tabs.push({ ...tabs[0], id: 2, url: "https://second.test/" });
+    await send({ type: "search", query: "" });
+    const onActivated = (
+      chromeMock.tabs as { onActivated: ReturnType<typeof event> }
+    ).onActivated;
+    onActivated.listeners[0]({ tabId: 2 });
+    expect(
+      ((await send({ type: "search", query: "" })).hits as { id: number }[])[0]
+        .id,
+    ).toBe(2);
+    await setup();
+    expect(
+      ((await send({ type: "search", query: "" })).hits as { id: number }[])[0]
+        .id,
+    ).toBe(2);
+  });
+  it("activates changed tabs without targeting stale text, and sends destination feedback", async () => {
+    await send({ type: "refresh" });
+    const response = await send({ type: "search", query: "ceramic" });
+    const hit = (response.hits as { updated: number; url: string }[])[0];
+    tabs[0].url = "https://example.com/changed";
+    const result = await send({
+      type: "navigate",
+      id: 1,
+      query: "ceramic",
+      ...hit,
+    });
+    expect(result.activated).toBe(true);
+    const messages = (
+      chromeMock.tabs as { sendMessage: ReturnType<typeof vi.fn> }
+    ).sendMessage.mock.calls;
+    expect(
+      messages.some((c) => (c[1] as { type: string }).type === "notice"),
+    ).toBe(true);
+    expect(
+      messages.some((c) => (c[1] as { type: string }).type === "highlight"),
+    ).toBe(false);
+  });
+  it("cleans up an unready overlay once and ignores a late acknowledgment", async () => {
+    const clicks = (
+      chromeMock.action as { onClicked: ReturnType<typeof event> }
+    ).onClicked;
+    const messages = (
+      chromeMock.tabs as { sendMessage: ReturnType<typeof vi.fn> }
+    ).sendMessage;
+    messages.mockImplementation(async () => ({ ready: false }));
+    clicks.listeners[0](tabs[0]);
+    await vi.waitFor(() =>
+      expect(
+        messages.mock.calls.some(
+          (c) => (c[1] as { type: string }).type === "open",
+        ),
+      ).toBe(true),
+    );
+    await vi.waitFor(
+      () =>
+        expect(
+          (chromeMock.windows as { create: ReturnType<typeof vi.fn> }).create,
+        ).toHaveBeenCalledTimes(1),
+      { timeout: 2500 },
+    );
+    expect(
+      messages.mock.calls.some(
+        (c) => (c[1] as { type: string }).type === "close",
+      ),
+    ).toBe(true);
+    const open = messages.mock.calls.find(
+      (c) => (c[1] as { type: string }).type === "open",
+    )![1] as { invocation: string };
+    expect(
+      await send({ type: "overlay-ready", invocation: open.invocation }),
+    ).toBe(false);
+  });
+});
+
+describe("in-flight invalidation and overlay readiness", () => {
+  it.each(["permission", "exclusion", "navigation"])(
+    "does not commit extraction after %s changes",
+    async (kind) => {
+      let release!: () => void, started!: () => void;
+      const blocked = new Promise<void>((r) => {
+        release = r;
+      });
+      const beginning = new Promise<void>((r) => {
+        started = r;
+      });
+      const script = chromeMock.scripting as {
+        executeScript: (args: { func?: unknown }) => Promise<unknown>;
+      };
+      const original = script.executeScript;
+      script.executeScript = async (args) => {
+        if (args.func) {
+          started();
+          await blocked;
+        }
+        return original(args);
+      };
+      const refresh = send({ type: "refresh" });
+      await beginning;
+      let invalidation: Promise<unknown> | undefined;
+      if (kind === "permission") grant = false;
+      if (kind === "exclusion")
+        invalidation = send({
+          type: "save",
+          theme: "system",
+          exclusions: ["example.com"],
+        });
+      if (kind === "navigation") {
+        tabs[0].url = "https://example.com/new";
+        const updated = (
+          chromeMock.tabs as { onUpdated: ReturnType<typeof event> }
+        ).onUpdated;
+        updated.listeners[0](1, { status: "loading" });
+      }
+      release();
+      await refresh;
+      await invalidation;
+      expect(
+        (await send({ type: "search", query: "ceramic" })).hits,
+      ).toHaveLength(0);
+    },
+  );
+  it("accepts readiness only from the expected tab and top document, coalescing rapid invocations", async () => {
+    const script = chromeMock.scripting as {
+      executeScript: (args: { func?: unknown }) => Promise<unknown>;
+    };
+    let documentId = "top";
+    script.executeScript = async () => [
+      {
+        documentId,
+        result: { url: tabs[0].url, text: "engine", truncated: false },
+      },
+    ];
+    const clicks = (
+      chromeMock.action as { onClicked: ReturnType<typeof event> }
+    ).onClicked;
+    const messages = (
+      chromeMock.tabs as { sendMessage: ReturnType<typeof vi.fn> }
+    ).sendMessage;
+    messages.mockImplementation(async () => ({ ready: false }));
+    clicks.listeners[0](tabs[0]);
+    clicks.listeners[0](tabs[0]);
+    await vi.waitFor(() =>
+      expect(
+        messages.mock.calls.some(
+          (c) => (c[1] as { type: string }).type === "open",
+        ),
+      ).toBe(true),
+    );
+    const open = messages.mock.calls.find(
+      (c) => (c[1] as { type: string }).type === "open",
+    )![1] as { invocation: string };
+    const ack = (id: number) =>
+      new Promise((resolve) =>
+        runtime.listeners[0](
+          { type: "overlay-ready", invocation: open.invocation },
+          {
+            id: "test",
+            url: "chrome-extension://test/overlay.html",
+            tab: { id },
+            frameId: 8,
+            documentId: "frame",
+          },
+          resolve,
+        ),
+      );
+    expect(await ack(2)).toBe(false);
+    documentId = "new-document";
+    expect(await ack(1)).toBe(false);
+    documentId = "top";
+    expect(await ack(1)).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(
+      (chromeMock.windows as { create: ReturnType<typeof vi.fn> }).create,
+    ).not.toHaveBeenCalled();
+    expect(
+      messages.mock.calls.filter(
+        (c) => (c[1] as { type: string }).type === "open",
+      ),
+    ).toHaveLength(1);
+  });
+});
+
+it("keeps content identity stable when dirty extraction returns unchanged text", async () => {
+  await send({ type: "refresh" });
+  const before = (
+    (await send({ type: "search", query: "ceramic" })).hits as {
+      updated: number;
+    }[]
+  )[0].updated;
+  await new Promise((resolve) => setTimeout(resolve, 3));
+  runtime.listeners[0](
+    { type: "dirty", url: tabs[0].url },
+    { id: "test", url: tabs[0].url, tab: tabs[0], frameId: 0 },
+    () => {},
+  );
+  const after = (
+    (await send({ type: "search", query: "ceramic" })).hits as {
+      updated: number;
+    }[]
+  )[0].updated;
+  expect(after).toBe(before);
+});
+
+it("invalidates old session schema bodies without losing metadata search", async () => {
+  session.schema = 1;
+  session.records = [
+    {
+      id: 1,
+      windowId: 2,
+      url: tabs[0].url,
+      title: "Unrelated",
+      text: "obsolete secret",
+      state: "content",
+      updated: 1,
+    },
+  ];
+  await setup();
+  expect(
+    (await send({ type: "search", query: "obsolete secret" })).hits,
+  ).toHaveLength(0);
+  expect(
+    (await send({ type: "search", query: "Unrelated" })).hits,
+  ).toHaveLength(1);
+});
+
+it.each(["partial", "empty"])(
+  "reports reliably extracted %s text",
+  async (reason) => {
+    (
+      chromeMock.scripting as {
+        executeScript: (arg: { func?: unknown }) => Promise<unknown>;
+      }
+    ).executeScript = async (arg) =>
+      arg.func
+        ? [
+            {
+              result: {
+                url: tabs[0].url,
+                text: reason === "empty" ? "" : "bounded body",
+                truncated: reason === "partial",
+              },
+            },
+          ]
+        : [];
+    await send({ type: "refresh" });
+    const result = await send({ type: "search", query: "" });
+    expect((result.coverage as { reason: string }[])[0].reason).toBe(reason);
+  },
+);
+
+it("updates reused fallback window scope and restores it across worker suspension", async () => {
+  tabs[0].url = "chrome://settings";
+  tabs.push({ ...tabs[0], id: 2, windowId: 3, url: "chrome://version" });
+  const clicks = (chromeMock.action as { onClicked: ReturnType<typeof event> })
+    .onClicked;
+  clicks.listeners[0](tabs[0]);
+  await vi.waitFor(() =>
+    expect(session.paletteContext).toEqual({ popup: 99, source: 2 }),
+  );
+  clicks.listeners[0](tabs[1]);
+  await vi.waitFor(() =>
+    expect(session.paletteContext).toEqual({ popup: 99, source: 3 }),
+  );
+  await setup();
+  const result = await new Promise<Record<string, unknown>>((resolve) =>
+    runtime.listeners[0](
+      { type: "search", query: "", filters: { thisWindow: true } },
+      {
+        id: "test",
+        url: "chrome-extension://test/palette.html?window=2",
+        tab: { id: 100, windowId: 99 },
+      },
+      resolve,
+    ),
+  );
+  expect((result.hits as { id: number }[]).map((h) => h.id)).toEqual([2]);
 });

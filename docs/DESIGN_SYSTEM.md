@@ -47,3 +47,10 @@ Clicking the dimmed page backdrop dismisses the overlay from search or Settings 
 ## Minimal visual refinement
 
 Use a 24px outer radius, 14px result rows, 10px controls/site icons, and 6px shortcut keys. Surfaces are neutral rather than saturated blue: selected light #f1f3f7 / dark #30353e, selected border #dde2eb / #434b59, hover #f5f6f9 / #2c3038, site tiles #f0f2f6 / #2c3139, selected tiles #e5e9f2 / #3b4350, footer #fafbfc / #21242a, keys #f0f2f5 / #2d323a, scrollbar #c4cad4 / #535d6b. A right-aligned return glyph appears on the selected row, supplementing color and aria-selected. Search uses a locally constructed 20px SVG magnifier; no remote icons. Empty-query rows omit snippets to reduce visual noise; keyword results retain two-line source excerpts. Content rows show hostname without repeated Content labels; limited text is labeled Partial text and metadata-only is Title & URL. Preserve coverage as Page text · X of Y tabs. Existing shortcuts, dismissal, permissions and ranking remain unchanged.
+
+
+## Search recovery and filters (2026-11-08)
+
+A compact collapsed Filters disclosure sits below search. It offers This window, Page text, a hostname and Exact host; the summary names active filters and Clear filters preserves the query. Controls wrap at narrow widths, use theme surfaces/focus indicators, and stay within the native dialog. No persistent advanced panel or query language is added. Close matches are labeled per row; highlighting marks the actual matched alternative words.
+
+The existing coverage summary is now a button with aria-expanded/aria-controls. It reveals a small scrollable explanation, grouped reason counts and at most 100 tab recovery rows. Normal rows remain quiet; detailed reasons belong in the disclosure. Live result counts update only when the count/match mode changes. Destination feedback uses a short-lived dismissible status without reopening search; prohibited injection uses the extension action badge/title. Filter and coverage disclosures share the existing rounded neutral visual language.

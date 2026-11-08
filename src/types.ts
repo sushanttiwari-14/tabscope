@@ -4,13 +4,35 @@ export interface Preferences {
   exclusions: string[];
   paused: boolean;
 }
+export type CoverageReason =
+  | "permission"
+  | "excluded"
+  | "sleeping"
+  | "restricted"
+  | "indexing"
+  | "failure"
+  | "stale"
+  | "budget"
+  | "partial"
+  | "paused"
+  | "ready"
+  | "empty";
+export interface SearchFilters {
+  windowId?: number;
+  pageText?: boolean;
+  domain?: string;
+  exactHost?: boolean;
+}
 export interface TabRecord {
+  coverage?: CoverageReason;
+  lastActive?: number;
   id: number;
   windowId: number;
   url: string;
   title: string;
   text: string;
   updated: number;
+  indexedAt?: number;
   state:
     | "content"
     | "metadata-only"
@@ -21,6 +43,11 @@ export interface TabRecord {
   truncated?: boolean;
 }
 export interface Hit {
+  coverage?: CoverageReason;
+  updated?: number;
+  passage?: { start: number; end: number; text: string };
+  matchedTerms?: string[];
+  approximate?: boolean;
   id: number;
   title: string;
   url: string;
@@ -30,6 +57,12 @@ export interface Hit {
 }
 export interface SearchResponse {
   hits: Hit[];
+  coverage?: {
+    id: number;
+    title: string;
+    url: string;
+    reason: CoverageReason;
+  }[];
   total: number;
   searchable: number;
   indexing: number;
@@ -90,6 +123,7 @@ export function enforceBudget(
       size -= r.text.length;
       r.text = "";
       r.state = "metadata-only";
+      r.coverage = "budget";
     }
   }
 }

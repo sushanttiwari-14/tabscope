@@ -74,7 +74,7 @@ try {
   assert.equal(context.pages().length, tabsBefore);
   const view = page
     .frames()
-    .find((f) => f.url() === `chrome-extension://${id}/overlay.html`);
+    .find((f) => f.url().startsWith(`chrome-extension://${id}/overlay.html?`));
   assert.ok(view);
   for (const theme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
@@ -150,7 +150,9 @@ try {
     await frame.getByRole("combobox").waitFor();
     const preview = page
       .frames()
-      .find((f) => f.url() === `chrome-extension://${id}/overlay.html`);
+      .find((f) =>
+        f.url().startsWith(`chrome-extension://${id}/overlay.html?`),
+      );
     await preview.evaluate(() => {
       const send = chrome.runtime.sendMessage.bind(chrome.runtime);
       const fixtures = [

@@ -2,7 +2,7 @@
 
 ## Journey and scope
 
-Chrome desktop, current profile, normal windows: command/icon → immediate input → ranked title/URL/body results → window/tab activation → best effort scroll/highlight. One result per tab. Empty input lists tabs by tab ID. No accounts, network search, history, bookmarks, AI, dashboard, or sync. Incognito disabled.
+Chrome desktop, current profile, normal windows: command/icon → immediate input → ranked title/URL/body results → window/tab activation → best effort scroll/highlight. One result per tab. Empty input lists tabs by activation recency, then Chrome lastAccessed, then tab ID. Recency is session-scoped and reconciled with open tabs. No accounts, network search, history, bookmarks, AI, dashboard, or sync. Incognito disabled.
 
 ## Interaction
 
@@ -10,7 +10,7 @@ Suggested shortcut Control+Space on Mac (manifest MacCtrl+Space), Ctrl+Shift+Spa
 
 ## Support
 
-Top-level rendered HTTP(S) DOM text, including below viewport; scripts/styles/forms/editable/hidden regions omitted. No cross-origin frames, closed/open shadow tree traversal, unloaded/virtualized text, canvas, images/OCR, built-in PDFs, browser-internal pages, Web Store protected pages, file pages, or incognito. Restricted and unpermitted tabs retain metadata. Discarded tabs are never woken for indexing. Their prior content is removed and metadata is labeled unavailable. Loaded content capped at 60,000 UTF-16 units and 20,000 visited text nodes; truncation labeled. Whole-index cap 2,000,000 text units, oldest bodies evicted to metadata-only.
+Top-level rendered HTTP(S) DOM text, including below viewport; scripts/styles/forms/editable/hidden regions omitted. No cross-origin frames, closed/open shadow tree traversal, unloaded/virtualized text, canvas, images/OCR, built-in PDFs, browser-internal pages, Web Store protected pages, file pages, or incognito. Restricted and unpermitted tabs retain metadata. Discarded tabs are never woken automatically; the coverage details offer an explicit Load and search this tab action. Their prior content is removed and metadata is labeled unavailable. Loaded content capped at 60,000 UTF-16 units and 20,000 visited text nodes; truncation labeled. Whole-index cap 2,000,000 text units, oldest bodies evicted to metadata-only.
 
 ## Acceptance
 
@@ -22,7 +22,15 @@ Top-level rendered HTTP(S) DOM text, including below viewport; scripts/styles/fo
 6. System/light/dark, reduced motion, focus containment and narrow viewport follow design system.
 7. Tests, benchmark methodology and unverified manual checks are recorded honestly.
 
-Search Latin-space-delimited words (Unicode letters/numbers supported). Case/diacritics folded; prefixes accepted. No stemming or language segmentation for CJK. All terms required across fields. Body weight 2, title 3, URL 1; phrase match body boost 1.5; no additional distance/proximity boost; deterministic tab ID tie. Snippet uses actual indexed text around first query occurrence, emphasizing all matched terms. Navigation uses excerpt context, tolerates split nodes, and reports if passage changed.
+Search Latin-space-delimited words (Unicode letters/numbers supported). Case/diacritics folded; prefixes accepted; all terms required across fields. No stemming or CJK segmentation. Body weight 2, title 3, URL 1; selected phrase adds a modest 1.15 multiplier. Recency breaks relevance ties, with tab ID as the final tie-breaker. Query bound: 500 UTF-16 units, 12 distinct tokens, 80 units/token. Punctuation-only queries behave as empty queries.
+
+Passages favor distinct terms, then adjacent query-order phrases, then tighter proximity, then earliest source position. Evidence uses original Unicode offsets and at most 240 source units plus clipping markers. Metadata-only matches show title/URL without unrelated body evidence. Navigation locates the selected exact passage nearest its original offset, with bounded DOM work; it never substitutes an unrelated query-word occurrence. Changed results still activate their tab and receive destination feedback. Injection-prohibited pages use a temporary extension-action badge/title. Successful activation closes the original palette.
+
+If normal exact/prefix search has no eligible matches, bounded edit-distance recovery returns separately labeled Close matches. Short tokens remain exact; tokens of length 4–7 allow one edit, 8–40 two. No fuzzy recovery for queries consisting only of tokens shorter than four. Recovery inspects at most 500 eligible records, 2M text units, 12,000 distinct candidate tokens, and eight alternatives per query token; it can omit matches outside those bounds. No exact/fuzzy mixing.
+
+Filters combine before result limits: This window captures the invoking browser window even for fallback; Page text requires every query term in the body; Website parses a hostname, includes real subdomains by default, and offers Exact host. Invalid host input produces a filtered-empty state. IDNs use URL hostname conversion. Filters are scoped to the palette session and can be cleared without clearing the query.
+
+Coverage details distinguish permission missing/withheld (Chrome cannot tell those apart through contains), exclusion, sleeping tab, known restrictions/unsupported MIME type, pending extraction, failed extraction, stale text, budget eviction, extraction caps, and pause. Unknown injection failure is reported as failed or unsupported rather than inventing a cause. Recovery requests revalidate URL, permission, pause and exclusion; per-tab retries have a 30-second cooldown. Budget/failure records are not automatically refreshed. Clearing removes body text and pauses indexing while metadata search remains available.
 
 First-open access: show a one-time inline explanation with an all-websites button and metadata-only alternative. Request access only on button activation. Remember grant, deny, or skip; never repeatedly request new-site permission after an all-websites grant. Existing all-site grants bypass the explanation; later changes belong in Settings.
 

@@ -1,0 +1,20 @@
+{
+  "browser": "157.0.8103.39",
+  "passed": true,
+  "fixtureHostGrantedAtInstall": true,
+  "nativePermissionPromptTested": false,
+  "features": [
+    "source passage",
+    "split-node highlight",
+    "destination notice",
+    "restricted-destination badge/title",
+    "page-text/domain filters",
+    "typo recovery",
+    "cross-window fallback filtering",
+    "excluded/paused coverage",
+    "narrow layout",
+    "rapid invocation/query preservation",
+    "initializer-free shell timeout cleanup",
+    "restricted singleton fallback"
+  ]
+}

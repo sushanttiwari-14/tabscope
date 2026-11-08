@@ -1,4 +1,4 @@
-import { extractReadable } from "./extract";
+import { wordSpans, tokenize } from "./search";
 import tokensCSS from "./styles/tokens.css";
 // Inline positioning survives host CSP; backdrop values share the UI tokens.
 const backdrop = /--backdrop:\s*([^;]+)/.exec(tokensCSS)![1];
@@ -11,16 +11,21 @@ if (!own.__tabscope) {
     prior: Element | null = null,
     timer: ReturnType<typeof setTimeout> | undefined,
     last = 0;
+  let activeInvocation = "";
+  let usable = false;
   const close = () => {
+    usable = false;
     host?.remove();
     host = null;
     if (prior instanceof HTMLElement && prior.isConnected) prior.focus();
   };
-  const open = () => {
+  const open = (invocation: string, windowId: number) => {
     if (host?.isConnected) {
       host.shadowRoot?.querySelector("iframe")?.focus();
       return;
     }
+    activeInvocation = invocation;
+    usable = false;
     prior = document.activeElement;
     host = document.createElement("div");
     host.id = "tabscope-root";
@@ -28,52 +33,50 @@ if (!own.__tabscope) {
     const shadow = host.attachShadow({ mode: "open" });
     const frame = document.createElement("iframe");
     frame.title = "TabScope search";
-    frame.src = chrome.runtime.getURL("overlay.html");
+    frame.src =
+      chrome.runtime.getURL("overlay.html") +
+      `?invocation=${encodeURIComponent(invocation)}&window=${windowId}`;
     frame.style.cssText =
       "display:block;width:100%;height:100%;border:0;outline:none;background:transparent;color-scheme:normal";
     shadow.append(frame);
     document.documentElement.append(host);
     frame.focus();
   };
-  function highlight(excerpt: string, query: string) {
-    const data = extractReadable();
-    if (!data.text) return false;
-    // Use the exact snippet without clipping markers, then fallback to a query term.
+  function highlight(excerpt: string, query: string, start: number) {
+    // Use the selected source passage without clipping markers.
     const target = excerpt.replace(/^…|…$/g, "").trim();
     const walker = document.createTreeWalker(
-      document.body,
+      document.body ?? document.documentElement,
       NodeFilter.SHOW_TEXT,
-      {
-        acceptNode(n) {
-          const p = n.parentElement;
-          if (
-            !p ||
-            p.closest(
-              'script,style,input,textarea,select,button,[contenteditable],#tabscope-root,[hidden],[aria-hidden="true"]',
-            )
-          )
-            return NodeFilter.FILTER_REJECT;
-          for (let e: Element | null = p; e; e = e.parentElement) {
-            const s = getComputedStyle(e);
-            if (
-              s.display === "none" ||
-              s.visibility === "hidden" ||
-              s.opacity === "0"
-            )
-              return NodeFilter.FILTER_REJECT;
-          }
-          return n.textContent?.trim()
-            ? NodeFilter.FILTER_ACCEPT
-            : NodeFilter.FILTER_REJECT;
-        },
-      },
     );
     const nodes: { node: Node; start: number; map: number[] }[] = [];
     let combined = "";
     let count = 0;
     while (walker.nextNode() && combined.length < 100_000 && count++ < 20_000) {
       const node = walker.currentNode;
-      const raw = node.textContent ?? "";
+      const p = node.parentElement;
+      if (
+        !p ||
+        p.closest(
+          'script,style,noscript,template,svg,canvas,input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),#tabscope-root,#tabscope-notice,[hidden],[aria-hidden="true"]',
+        )
+      )
+        continue;
+      let visible = true;
+      for (let e: Element | null = p; e; e = e.parentElement) {
+        const style = getComputedStyle(e);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.visibility === "collapse" ||
+          style.opacity === "0"
+        ) {
+          visible = false;
+          break;
+        }
+      }
+      if (!visible) continue;
+      const raw = (node.textContent ?? "").slice(0, 100_000 - combined.length);
       const map: number[] = [];
       let compact = "";
       let space = false;
@@ -99,28 +102,31 @@ if (!own.__tabscope) {
       nodes.push({ node, start: combined.length, map });
       combined += compact;
     }
-    let at = combined.indexOf(target),
-      len = target.length;
-    if (at < 0) {
-      const word = query.match(/[\p{L}\p{N}]+/u)?.[0] ?? "";
-      if (!word) return false;
-      at = combined.toLowerCase().indexOf(word.toLowerCase());
-      len = word.length;
+    // Select the occurrence nearest its indexed source offset; never jump to a
+    // random query word when the selected passage has disappeared.
+    let at = -1;
+    let cursor = 0;
+    let distance = Infinity;
+    for (let count = 0; count < 1000; count++) {
+      const occurrence = combined.indexOf(target, cursor);
+      if (occurrence < 0) break;
+      const delta = Math.abs(occurrence - start);
+      if (delta < distance) {
+        at = occurrence;
+        distance = delta;
+      }
+      cursor = occurrence + Math.max(1, target.length);
     }
+    let len = target.length;
     if (at < 0 || !len) return false;
-    // Snippet context may start in another block. Scroll and paint the matching
-    // words inside that context, rather than its first node above the passage.
-    const matches = (query.match(/[\p{L}\p{N}]+/gu) ?? [])
-      .map((word) => {
-        const offset = combined.toLowerCase().indexOf(word.toLowerCase(), at);
-        return { offset, end: offset + word.length };
-      })
-      .filter((m) => m.offset >= at && m.end <= at + len);
+    const terms = tokenize(query);
+    const matches = wordSpans(combined.slice(at, at + len)).filter((w) =>
+      terms.some((t) => w.term.startsWith(t)),
+    );
     if (matches.length) {
-      const start = Math.min(...matches.map((m) => m.offset));
-      const end = Math.max(...matches.map((m) => m.end));
-      at = start;
-      len = end - start;
+      const offset = matches[0].start;
+      len = matches[matches.length - 1].end - offset;
+      at += offset;
     }
     const end = at + len - 1;
     const first = nodes.find(
@@ -159,30 +165,93 @@ if (!own.__tabscope) {
     }, 5000);
     return true;
   }
-  chrome.runtime.onMessage.addListener((m, _s, reply) => {
-    if (m?.type === "open") {
-      open();
+  chrome.runtime.onMessage.addListener((m, sender, reply) => {
+    if (
+      sender.id !== chrome.runtime.id ||
+      sender.tab ||
+      !m ||
+      typeof m !== "object"
+    )
+      return;
+    if (m.type === "ui-ready" && m.invocation === activeInvocation) {
+      usable = true;
       reply(true);
     }
-    if (m?.type === "close") {
+    if (
+      m.type === "notice" &&
+      typeof m.text === "string" &&
+      m.text.length <= 200
+    ) {
+      document.getElementById("tabscope-notice")?.remove();
+      const note = document.createElement("div");
+      note.id = "tabscope-notice";
+      note.setAttribute("role", "status");
+      note.style.cssText =
+        "position:fixed;bottom:24px;left:24px;max-width:calc(100vw - 64px);padding:12px 16px;background:#24272d;color:#fff;border-radius:12px;z-index:2147483647;font:14px/1.5 system-ui;box-shadow:0 4px 24px #0004";
+      note.textContent = m.text;
+      const dismiss = document.createElement("button");
+      dismiss.textContent = "Dismiss";
+      dismiss.style.cssText =
+        "margin-left:12px;color:inherit;background:transparent;border:1px solid currentColor;border-radius:4px;padding:4px";
+      dismiss.onclick = () => note.remove();
+      note.append(dismiss);
+      document.documentElement.append(note);
+      setTimeout(() => note.remove(), 7000);
+      reply(true);
+    }
+    if (
+      m?.type === "open" &&
+      typeof m.invocation === "string" &&
+      m.invocation.length <= 80 &&
+      Number.isInteger(m.windowId)
+    ) {
+      open(m.invocation, m.windowId);
+      reply({
+        ready:
+          usable && !!host?.shadowRoot?.querySelector("iframe")?.isConnected,
+        pendingInvocation: activeInvocation,
+      });
+    }
+    if (
+      m?.type === "close" &&
+      (!m.invocation || m.invocation === activeInvocation)
+    ) {
       close();
       reply(true);
     }
     if (
       m?.type === "highlight" &&
       typeof m.excerpt === "string" &&
-      typeof m.query === "string"
+      typeof m.query === "string" &&
+      m.query.length <= 500 &&
+      m.excerpt.length <= 300 &&
+      m.expectedURL === location.href &&
+      Number.isInteger(m.start)
     ) {
       close();
-      reply(highlight(m.excerpt, m.query));
+      reply(highlight(m.excerpt, m.query, m.start));
     }
   });
   new MutationObserver((mutations) => {
     if (
       mutations.every((m) => {
+        if (
+          m.type === "childList" &&
+          [...m.addedNodes, ...m.removedNodes].length &&
+          [...m.addedNodes, ...m.removedNodes].every(
+            (n) =>
+              n instanceof Element &&
+              n.matches(
+                "#tabscope-root,#tabscope-highlight-style,#tabscope-notice",
+              ),
+          )
+        )
+          return true;
         const e =
           m.target instanceof Element ? m.target : m.target.parentElement;
-        return !!e?.closest("#tabscope-root,#tabscope-highlight-style");
+        return !!e?.closest(
+          "#tabscope-root,#tabscope-highlight-style,#tabscope-notice",
+        );
       })
     )
       return;

@@ -16,7 +16,8 @@
     "benchmark": "tsx scripts/benchmark.ts",
     "test:browser": "node scripts/browser.mjs",
     "test:access": "node scripts/access-smoke.mjs",
-    "test:overlay": "node scripts/overlay-smoke.mjs"
+    "test:overlay": "node scripts/overlay-smoke.mjs",
+    "test:features": "node scripts/features-smoke.mjs"
   },
   "dependencies": {
     "minisearch": "^7.2.0"

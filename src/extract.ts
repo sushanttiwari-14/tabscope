@@ -1,12 +1,23 @@
 // Self contained: passed to scripting.executeScript without external closures.
 export function extractReadable() {
+  if (
+    !["text/html", "application/xhtml+xml", "text/plain"].includes(
+      document.contentType,
+    )
+  )
+    return {
+      url: location.href,
+      text: "",
+      truncated: false,
+      unsupported: true,
+    };
   const limit = 60_000;
   const nodesLimit = 20_000;
   let text = "";
   let visited = 0;
   let truncated = false;
   const ignored =
-    'script,style,noscript,template,svg,canvas,input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),[hidden],[aria-hidden="true"],#tabscope-root';
+    'script,style,noscript,template,svg,canvas,input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),[hidden],[aria-hidden="true"],#tabscope-root,#tabscope-notice';
   const walker = document.createTreeWalker(
     document.body ?? document.documentElement,
     NodeFilter.SHOW_TEXT,

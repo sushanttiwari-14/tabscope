@@ -10,7 +10,7 @@ import {
   type SearchResponse,
   type Preferences,
 } from "./types";
-import { normalize, tokenize } from "./search";
+import { normalize, tokenize, snippet as sourceSnippet } from "./search";
 const overlay =
   location.pathname.endsWith("/overlay.html") ||
   new URLSearchParams(location.search).has("overlay");
@@ -103,14 +103,85 @@ const alert = el("div", "notice");
 alert.setAttribute("role", "alert");
 alert.hidden = true;
 const footer = el("footer");
-const coverage = el("span", "coverage", "Reading open tabs…");
+const coverage = el("button", "coverage quiet", "Reading open tabs…");
+coverage.setAttribute("aria-expanded", "false");
+const coverageDetails = el("section", "coverage-details");
+coverageDetails.hidden = true;
+coverageDetails.id = "coverage-details";
+coverageDetails.setAttribute("aria-label", "Page text coverage and recovery");
+coverage.setAttribute("aria-controls", coverageDetails.id);
+coverage.onclick = () => {
+  coverageDetails.hidden = !coverageDetails.hidden;
+  coverage.setAttribute("aria-expanded", String(!coverageDetails.hidden));
+};
+const filterBar = el("details", "filters");
+const filterSummary = el("summary", "", "Filters");
+const filterControls = el("div", "filter-controls");
+const windowFilter = el("input");
+windowFilter.type = "checkbox";
+const bodyFilter = el("input");
+bodyFilter.type = "checkbox";
+const exactFilter = el("input");
+exactFilter.type = "checkbox";
+const domainFilter = el("input");
+domainFilter.placeholder = "example.com";
+domainFilter.maxLength = 253;
+domainFilter.setAttribute(
+  "aria-label",
+  "Website hostname (includes subdomains unless Exact host is selected)",
+);
+function checkbox(input: HTMLInputElement, text: string) {
+  const label = el("label", "filter-check");
+  label.append(input, text);
+  return label;
+}
+function clearFilters() {
+  windowFilter.checked = bodyFilter.checked = exactFilter.checked = false;
+  domainFilter.value = "";
+  input.focus();
+  void update();
+}
+filterControls.append(
+  checkbox(windowFilter, "This window"),
+  checkbox(bodyFilter, "Page text"),
+  domainFilter,
+  checkbox(exactFilter, "Exact host"),
+  button("Clear filters", async () => clearFilters()),
+);
+filterBar.append(filterSummary, filterControls);
+const filters = () => ({
+  thisWindow: windowFilter.checked,
+  pageText: bodyFilter.checked,
+  domain: domainFilter.value.trim(),
+  exactHost: exactFilter.checked,
+});
+const activeFilters = () =>
+  windowFilter.checked || bodyFilter.checked || !!domainFilter.value.trim();
+for (const control of [windowFilter, bodyFilter, exactFilter, domainFilter])
+  control.addEventListener("input", (event) => {
+    if (!(event instanceof InputEvent) || !event.isComposing) void update();
+  });
+domainFilter.addEventListener("compositionend", () => {
+  void update();
+});
 const hints = el("span", "hint");
 hints.append(el("kbd", "", "↑↓"), " select  ", el("kbd", "", "↵"), " jump");
 const settingsButton = el("button", "quiet", "Settings");
 const live = el("span", "sr");
 live.setAttribute("aria-live", "polite");
 footer.append(coverage, hints, settingsButton);
-dialog.append(top, accessPrompt, list, state, settings, alert, footer, live);
+dialog.append(
+  top,
+  accessPrompt,
+  filterBar,
+  coverageDetails,
+  list,
+  state,
+  settings,
+  alert,
+  footer,
+  live,
+);
 document.body.append(dialog);
 dialog.showModal();
 input.focus();
@@ -120,6 +191,8 @@ let sequence = 0;
 let inSettings = false;
 let composing = false;
 let explainAccess = false;
+let renderedQuery = "";
+let coverageSignature = "";
 function hideAccessExplanation() {
   explainAccess = false;
   accessPrompt.hidden = true;
@@ -227,21 +300,27 @@ async function activate() {
   const hit = hits[selected];
   if (!hit) return;
   try {
-    const r = await request<{ warning?: string }>({
+    await request<{ activated?: boolean }>({
       type: "navigate",
       id: hit.id,
       query: input.value,
+      url: hit.url,
+      updated: hit.updated,
+      filters: filters(),
     });
-    if (r.warning) {
-      error(r.warning);
-    } else await close();
+    await close();
   } catch (e) {
     error(e);
     void update();
   }
 }
 function render(response: SearchResponse) {
+  const priorId =
+    renderedQuery === input.value ? hits[selected]?.id : undefined;
+  renderedQuery = input.value;
   hits = response.hits;
+  if (priorId !== undefined && hits.some((h) => h.id === priorId))
+    selected = hits.findIndex((h) => h.id === priorId);
   list.replaceChildren();
   const hasQuery = tokenize(input.value).length > 0;
   const stateLabels: Record<Hit["state"], string> = {
@@ -267,13 +346,16 @@ function render(response: SearchResponse) {
     const copy = el("div", "copy");
     const title = el("div", "title");
     title.title = h.title;
-    title.append(highlighted(h.title, input.value));
+    title.append(
+      highlighted(h.title, h.matchedTerms?.join(" ") ?? input.value),
+    );
     const label = stateLabels[h.state];
     const meta = el(
       "div",
       "meta",
       [
         host,
+        h.approximate ? "Close match" : "",
         label,
         h.truncated && (h.state === "content" || h.state === "stale")
           ? "Partial text"
@@ -284,9 +366,18 @@ function render(response: SearchResponse) {
     );
     meta.title = h.url;
     copy.append(title, meta);
-    if (hasQuery && h.snippet) {
+    const urlEvidence =
+      hasQuery && !h.snippet
+        ? sourceSnippet(h.url, h.matchedTerms?.join(" ") ?? input.value)
+        : "";
+    if (hasQuery && (h.snippet || urlEvidence)) {
       const snippet = el("p", "snippet");
-      snippet.append(highlighted(h.snippet, input.value));
+      snippet.append(
+        highlighted(
+          h.snippet || "URL · " + urlEvidence,
+          h.matchedTerms?.join(" ") ?? input.value,
+        ),
+      );
       copy.append(snippet);
     }
     const actionHint = el("span", "row-action", "↵");
@@ -306,7 +397,11 @@ function render(response: SearchResponse) {
     el(
       "strong",
       "",
-      input.value ? "No matching tabs" : "No open tabs to search",
+      activeFilters()
+        ? "No tabs match these filters"
+        : input.value
+          ? "No matching tabs"
+          : "No open tabs to search",
     ),
     el(
       "span",
@@ -316,10 +411,128 @@ function render(response: SearchResponse) {
         : "Open a website, then return here.",
     ),
   );
+  if (activeFilters())
+    state.append(button("Clear filters", async () => clearFilters()));
+  filterSummary.textContent =
+    "Filters" +
+    (activeFilters()
+      ? ` · ${[windowFilter.checked && "This window", bodyFilter.checked && "Page text", domainFilter.value.trim() && domainFilter.value.trim() + (exactFilter.checked ? " (exact)" : " + subdomains")].filter(Boolean).join(" · ")}`
+      : "");
+  const nextCoverage = JSON.stringify([response.coverage, response.paused]);
+  if (nextCoverage !== coverageSignature) {
+    coverageSignature = nextCoverage;
+    const restoreCoverageFocus = coverageDetails.contains(
+      document.activeElement,
+    );
+    coverageDetails.replaceChildren(
+      el("strong", "", "Page text coverage"),
+      el(
+        "p",
+        "",
+        "Only loaded, permitted page text is searched. Unloaded sections, frames, PDFs and images are not included.",
+      ),
+    );
+    const descriptions = {
+      permission: "Website access missing or withheld",
+      excluded: "Excluded by you",
+      sleeping: "Sleeping tab",
+      restricted: "Browser-restricted or unsupported page",
+      indexing: "Indexing in progress",
+      failure: "Text extraction failed or is unsupported",
+      stale: "Previously indexed text may be out of date",
+      budget: "Text removed to keep the local index bounded",
+      partial: "Partial text — page extraction limit reached",
+      paused: "Indexing paused",
+      ready: "Page text searchable",
+      empty: "No readable page text found",
+    };
+    const entries = response.coverage ?? [];
+    const summary = new Map<string, number>();
+    for (const entry of entries)
+      summary.set(entry.reason, (summary.get(entry.reason) ?? 0) + 1);
+    coverageDetails.append(
+      el(
+        "p",
+        "",
+        [...summary]
+          .map(
+            ([reason, count]) =>
+              `${count} · ${descriptions[reason as keyof typeof descriptions]}`,
+          )
+          .join("; "),
+      ),
+    );
+    if (response.paused)
+      coverageDetails.append(
+        button("Resume indexing", async () => {
+          await request({ type: "resume" });
+          await update();
+        }),
+      );
+    // Details remain bounded even with many open tabs; choose a result's domain filter to narrow.
+    for (const entry of entries
+      .filter((e) => e.reason !== "ready")
+      .slice(0, 100)) {
+      const row = el("div", "coverage-row");
+      row.append(
+        el(
+          "span",
+          "",
+          `${entry.title || entry.url} · ${descriptions[entry.reason]}`,
+        ),
+      );
+      const recover = async (action: string) => {
+        await request({
+          type: "recover",
+          id: entry.id,
+          url: entry.url,
+          action,
+        });
+        await update();
+      };
+      if (entry.reason === "permission")
+        row.append(
+          button("Allow this site", async () => {
+            const u = new URL(entry.url);
+            const granted = await chrome.permissions.request({
+              origins: [u.protocol + "//" + u.hostname + "/*"],
+            });
+            if (!granted)
+              throw Error(
+                "Access was not granted. Titles and URLs still work.",
+              );
+            await request({ type: "refresh" });
+            await update();
+          }),
+        );
+      if (entry.reason === "excluded")
+        row.append(button("Include this site", async () => recover("include")));
+      if (entry.reason === "sleeping")
+        row.append(
+          button("Load and search this tab", async () => {
+            await recover("load");
+            await close();
+          }),
+        );
+      if (["failure", "budget", "stale"].includes(entry.reason))
+        row.append(button("Retry page text", async () => recover("retry")));
+      coverageDetails.append(row);
+    }
+    if (entries.filter((e) => e.reason !== "ready").length > 100)
+      coverageDetails.append(
+        el(
+          "p",
+          "",
+          "Showing the first 100 tabs needing attention. Use the window or website filters to narrow the list.",
+        ),
+      );
+    if (restoreCoverageFocus) coverage.focus();
+  }
   coverage.textContent = response.paused
     ? "Indexing paused"
     : `Page text · ${response.searchable} of ${response.total} tabs${response.indexing ? " · Indexing…" : ""}`;
-  live.textContent = `${hits.length} results. ${coverage.textContent}`;
+  const announcement = `${hits.length} ${hits[0]?.approximate ? "close matches" : "results"}.`;
+  if (live.textContent !== announcement) live.textContent = announcement;
   document.documentElement.dataset.theme = response.theme;
   select(Math.min(selected, hits.length - 1));
 }
@@ -330,6 +543,7 @@ async function update() {
     const response = await request<SearchResponse>({
       type: "search",
       query: input.value,
+      filters: filters(),
     });
     if (version === sequence && !inSettings) render(response);
   } catch (e) {
@@ -360,6 +574,7 @@ input.onkeydown = (e) => {
 };
 function showSearch() {
   inSettings = false;
+  filterBar.hidden = false;
   accessPrompt.hidden = !explainAccess;
   settings.hidden = true;
   list.hidden = false;
@@ -378,6 +593,9 @@ function button(text: string, fn: () => Promise<unknown>) {
 }
 async function showSettings() {
   inSettings = true;
+  filterBar.hidden = true;
+  coverageDetails.hidden = true;
+  coverage.setAttribute("aria-expanded", "false");
   accessPrompt.hidden = true;
   ++sequence;
   list.hidden = true;
@@ -534,4 +752,19 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   list.replaceChildren();
   input.removeAttribute("aria-activedescendant");
   if (!inSettings) void update();
+});
+
+// The handshake originates only after the actual modal and input are usable.
+if (overlay) {
+  const invocation = new URLSearchParams(location.search).get("invocation");
+  if (invocation)
+    requestAnimationFrame(() => {
+      if (dialog.open && input.isConnected)
+        void request({ type: "overlay-ready", invocation }).catch(error);
+    });
+}
+const destinationNotice = new URLSearchParams(location.search).get("notice");
+if (destinationNotice) error(destinationNotice.slice(0, 200));
+window.addEventListener("focus", () => {
+  if (!inSettings) input.focus();
 });

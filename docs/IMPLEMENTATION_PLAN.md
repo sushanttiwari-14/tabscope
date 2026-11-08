@@ -1,3 +1,5 @@
+> Status update (2026-11-08): the five search/recovery/usability extensions are implemented in the existing modules. See PRODUCT_SPEC.md and ARCHITECTURE.md for current behavior and TESTING.md for current checks and outstanding manual gates. The original plan below is historical.
+
 # Implementation plan
 
 - [x] Inspect workspace/tools/account; define product, design, architecture.

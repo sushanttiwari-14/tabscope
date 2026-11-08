@@ -1,3 +1,39 @@
+# Current verification — 2026-11-08
+
+The report below dated November 7 is historical evidence. The current implementation adds passage selection, coverage recovery, readiness acknowledgment, recency/typo recovery and session filters. It is not a production-readiness claim.
+
+Verified on installed Google Chrome 157.0.8103.39 in isolated profiles: all three browser smoke scripts pass, including the initializer-free shell timeout/cleanup and restricted fallback reuse. Current structured evidence: [feature results](evidence/features-result.json), [narrow recovery view](screenshots/coverage-narrow.png).
+
+Current required checks: `npm run check` (strict TypeScript, ESLint, 45 tests in five files) and `npm run build`. Browser checks: `npm run test:overlay`, `npm run test:access`, and `npm run test:features`. The features smoke uses the production JS in an isolated temporary installation with a **localhost-only required host grant in its test manifest**, then exercises real worker responses. It does not simulate search responses and does not establish native permission prompt behavior. An additional disposable installation intentionally omits the overlay initializer to test readiness timeout/cleanup; this fault is confined to the temporary test package. No production manifest permissions are changed.
+
+Regression coverage includes distinct-term/phrase/proximity snippets, repeated passages and combining-mark offsets, metadata-only evidence, extraction/budget limits, immutable updates, metadata after pause, real blocked-extraction races with clear/exclusion/revocation/navigation, per-tab retry cooldown, invalid URL/recovery/filter messages, session recency restore, exact-first typo recovery, body/domain/window filters before limits, expected-tab/top-document readiness validation, duplicate invocation, late acknowledgment, missing passage destination notices and untrusted content messages.
+
+Current synthetic benchmark on Node 24.21.0 / Apple M4 (250 warm queries, same fixtures/method as the historical report):
+
+| Documents | Cold rebuild p50 / p95 ms | Warm search p50 / p95 ms | Observed JS heap MB |
+| --- | ---: | ---: | ---: |
+| 5 | 4.09 / 7.95 | 0.23 / 0.38 | 13 |
+| 20 | 16.69 / 18.45 | 0.95 / 1.09 | 55 |
+| 50 | 41.58 / 42.89 | 2.45 / 2.72 | 80 |
+| 100 | 83.12 / 85.10 | 5.09 / 5.36 | 185 |
+| 150 | 124.35 / 132.67 | 7.56 / 8.14 | 92 |
+
+Source word spans are cached during index updates to keep typing fast, increasing cold work and memory. Heap observations include unreclaimed allocations from repeated rebuilds; they are not peak or retained browser memory. The 150-document stress fixture exceeds the product's 2M-unit body budget. These measurements describe this controlled exact-search fixture, not real-site extraction latency, fuzzy worst cases or competitor performance. The previous 105-tab Chrome load measurement was not rerun for this change.
+
+Manual checks still outstanding: Windows/Linux native shortcuts; VoiceOver/NVDA; actual 200%/400% browser zoom; native allow/deny/withheld permission prompts; real IME composition; Chrome 120 hardware compatibility; broader SPA/virtualized-site behavior. The native-prompt `test:browser` suite was not rerun for this revision; earlier grant/revoke/load evidence remains historical. Automated no-grant tests and mocked revocation/race tests are not substitutes for Chrome's native prompts.
+
+Local installation follow-up: an obsolete unpacked-extension folder caused ERR_FILE_NOT_FOUND. Loading the current build created a separate installation; its own Settings reported **Current shortcut: Not assigned**, even though an older installation's shortcut page showed Control+Space. The toolbar opened the current fallback UI and a title/URL query returned the expected public Wikipedia tab. Native Control+Space is **not verified for the current installation** and requires manual assignment in Chrome. Website text access was not granted to the new installation during that check. No personal-profile screenshots, extracted text or browsing index were saved as evidence.
+
+Hands-on Chrome checklist:
+
+1. Load `dist`, grant only a test site, open pages with early navigation words and a later multiword passage. Search `event horizon`, try accents/decomposed text and repeated paragraphs; activate and check the selected passage. Try a title-only and URL-path-only query.
+2. Click coverage. Try deny/withhold access, exclude/include a site, discard a tab through `chrome://discards`, load only that tab, retry a failed/evicted body, then Clear data & pause / Resume. Confirm metadata remains usable and excluded/revoked text never returns.
+3. Reinvoke rapidly with a query, dismiss via Escape/backdrop and verify restored focus/no click-through. Invoke on `chrome://version` and confirm one fallback window. Change/remove a selected passage before activating; confirm a short notice on the destination, or action badge/title when injection is prohibited.
+4. Activate several tabs in a known order and reopen empty search. Try an exact prefix followed by a typo such as `evant horizon`; only the latter should show Close match labels. Try a single character and punctuation-only input.
+5. Across two normal windows, combine This window, Page text and website filters in overlay and fallback. Check exact-host/subdomain behavior, an IDN host, invalid input, filtered-empty Clear filters, keyboard selection and preservation of query. Inspect narrow/light/dark layouts and native zoom.
+
+---
+
 # Verification report — 2026-11-07
 
 This is a working MVP in a draft PR, not a production-readiness claim. Source branch: `feat/tabscope-mvp`. Native command invocation and some accessibility/compatibility checks remain release gates.
