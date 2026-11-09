@@ -100,7 +100,7 @@ dialog[open] {
   min-height: 0;
 }
 .palette-body-content {
-  max-height: calc(var(--panel-limit) - var(--search-height, 80px) - 2px);
+  max-height: calc(var(--panel-limit) - var(--search-height, 66px) - 2px);
 }
 .search-results {
   flex-shrink: 1;
@@ -117,7 +117,7 @@ body:not(.overlay) dialog {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 22px 24px;
+  padding: 15px 24px;
   flex-shrink: 0;
 }
 .logo {
@@ -729,7 +729,7 @@ footer {
     display: none;
   }
   .top {
-    padding: 18px 16px;
+    padding: 15px 18px;
     gap: 10px;
   }
   .field {
