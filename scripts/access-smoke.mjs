@@ -33,6 +33,8 @@ try {
   assert.ok(command?.shortcut && /space/i.test(command.shortcut));
   console.log("Registered shortcut:", command.shortcut);
   const prompt = page.getByRole("region", { name: "Search inside your tabs" });
+  assert.equal(await prompt.isVisible(), false);
+  await page.getByRole("combobox").fill("chrome");
   await prompt.waitFor();
   assert.equal(
     (await page.evaluate(() => chrome.permissions.getAll())).origins.length,
@@ -41,11 +43,17 @@ try {
   await page.setViewportSize({ width: 640, height: 800 });
   for (let n = 0; n < 8; n++) await context.newPage();
   await page.bringToFront();
-  await page.getByRole("combobox").fill(" ");
+  await page.getByRole("combobox").fill("about");
   await page.waitForFunction(
-    () => document.querySelectorAll("[role=option]").length >= 10,
+    () => document.querySelectorAll("[role=option]").length >= 8,
   );
   await page.setViewportSize({ width: 360, height: 640 });
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
   assert.equal(
     await page.evaluate(() => {
       const dialog = document.querySelector("dialog").getBoundingClientRect();

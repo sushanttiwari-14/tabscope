@@ -138,7 +138,8 @@ try {
   await ui.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await capture("search-dark");
   await ui.getByRole("button", { name: "Clear search", exact: true }).click();
-  await ui.getByText("Recent tabs", { exact: true }).waitFor();
+  await ui.locator(".search-results").waitFor({ state: "hidden" });
+  assert.equal(await ui.locator("footer").isVisible(), false);
   assert.equal(await ui.getByRole("combobox").inputValue(), "");
   assert.equal(await ui.locator(".snippet").count(), 0);
   await capture("recent-dark");
@@ -320,6 +321,7 @@ try {
   assert.ok(
     result.coverage.some((e) => e.id === tab.id && e.reason === "excluded"),
   );
+  await ui.getByRole("combobox").fill("event");
   await ui.getByRole("button", { name: /Page text/ }).click();
   await ui
     .getByRole("button", { name: "Include this site", exact: true })
@@ -471,7 +473,7 @@ try {
           "excluded/paused coverage",
           "narrow layout",
           "filter chips and Escape dismissal",
-          "clear query and recent-state hierarchy",
+          "clear query collapses to search field",
           "dialog keyboard focus containment",
           "grouped settings and immediate theme persistence",
           "weak body evidence suppressed for complete title matches",

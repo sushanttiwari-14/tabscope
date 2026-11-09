@@ -76,6 +76,89 @@ try {
     .frames()
     .find((f) => f.url().startsWith(`chrome-extension://${id}/overlay.html?`));
   assert.ok(view);
+  // Spotlight behavior: idle is one field; typing grows down from that anchor.
+  const settle = async () => {
+    await view.locator("dialog").evaluate(async (dialog) => {
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+      await Promise.all(
+        dialog
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+    });
+  };
+  await settle();
+  assert.equal(await frame.getByRole("option").count(), 0);
+  assert.equal(await frame.locator("footer").isVisible(), false);
+  assert.equal(
+    await frame.getByRole("combobox").getAttribute("aria-expanded"),
+    "false",
+  );
+  const compact = await frame.locator("dialog").boundingBox();
+  const field = await frame.getByRole("combobox").boundingBox();
+  await page.screenshot({ path: path.join(evidence, "spotlight-compact.png") });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await frame.getByRole("combobox").fill("Fixture");
+  await frame.getByRole("option").first().waitFor();
+  await settle();
+  const expanded = await frame.locator("dialog").boundingBox();
+  const expandedField = await frame.getByRole("combobox").boundingBox();
+  assert.ok(expanded.height > compact.height + 50);
+  assert.ok(Math.abs(expandedField.y - field.y) < 1);
+  assert.ok(Math.abs(expanded.y - compact.y) < 1);
+  assert.equal(
+    await frame.getByRole("combobox").getAttribute("aria-expanded"),
+    "true",
+  );
+  assert.equal(
+    await frame.locator(".palette-body").evaluate((body) => body.scrollTop),
+    0,
+  );
+  await page.screenshot({
+    path: path.join(evidence, "spotlight-expanded.png"),
+  });
+  // Clearing during an expansion and typing again must end in the latest state.
+  await frame
+    .getByRole("button", { name: "Clear search", exact: true })
+    .click();
+  await frame.getByRole("combobox").fill("Fixture");
+  await frame.getByRole("combobox").fill("");
+  await settle();
+  assert.equal(await frame.getByRole("option").count(), 0);
+  assert.equal(await frame.locator("footer").isVisible(), false);
+  assert.ok(
+    Math.abs(
+      (await frame.locator("dialog").boundingBox()).height - compact.height,
+    ) < 1,
+  );
+  await frame.getByRole("combobox").fill("   ");
+  await settle();
+  assert.equal(await frame.locator(".search-results").isVisible(), false);
+  await frame.getByRole("combobox").fill("no-such-tab-xyz");
+  await frame.getByText("No matching tabs", { exact: true }).waitFor();
+  await frame.getByRole("combobox").fill("");
+  await settle();
+  // Settings and filters remain reachable from the compact field.
+  await frame.getByRole("button", { name: "Settings", exact: true }).click();
+  await frame.getByRole("heading", { name: "Settings", exact: true }).waitFor();
+  await frame
+    .getByRole("button", { name: "← Back to search", exact: true })
+    .click();
+  await settle();
+  assert.equal(await frame.locator(".search-results").isVisible(), false);
+  await frame.getByRole("button", { name: "Filters", exact: true }).click();
+  await frame
+    .getByRole("checkbox", { name: "This window", exact: true })
+    .check();
+  await frame.getByRole("option").first().waitFor();
+  await frame
+    .getByRole("button", { name: "Remove This window filter", exact: true })
+    .click();
+  await frame.getByRole("combobox").press("Escape");
+  await settle();
+  assert.equal(await frame.locator(".search-results").isVisible(), false);
   for (const theme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
     const canvas = await view.evaluate(() => ({
@@ -232,7 +315,7 @@ try {
       await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
       await frame.getByRole("combobox").fill(" ");
       await frame.getByRole("combobox").fill("");
-      await frame.getByRole("option").nth(4).waitFor();
+      await frame.getByRole("option").waitFor({ state: "detached" });
       await frame.locator(".snippet").first().waitFor({ state: "detached" });
       await preview.waitForFunction(
         (theme) =>

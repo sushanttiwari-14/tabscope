@@ -87,7 +87,7 @@ input.setAttribute("aria-label", "Search open tabs");
 input.setAttribute("role", "combobox");
 input.setAttribute("aria-autocomplete", "list");
 input.setAttribute("aria-controls", "results");
-input.setAttribute("aria-expanded", "true");
+input.setAttribute("aria-expanded", "false");
 input.autocomplete = "off";
 input.spellcheck = false;
 const clearSearch = el("button", "icon-button clear-search");
@@ -237,21 +237,27 @@ const privacyNote = el("span", "local-note", "On this device");
 privacyNote.hidden = true;
 const live = el("span", "sr");
 live.setAttribute("aria-live", "polite");
-footer.append(coverage, hints, settingsButton, privacyNote);
-dialog.append(
-  top,
+footer.append(coverage, hints, privacyNote);
+// Keep settings reachable even when the palette is just a search field.
+top.insertBefore(settingsButton, exit);
+const body = el("div", "palette-body");
+const bodyContent = el("div", "palette-body-content");
+const results = el("section", "search-results");
+results.hidden = true;
+results.append(resultsHeader, list, state);
+footer.hidden = true;
+bodyContent.append(
   accessPrompt,
   filterControls,
   activeChips,
   coverageDetails,
-  resultsHeader,
-  list,
-  state,
+  results,
   settings,
   alert,
   footer,
-  live,
 );
+body.append(bodyContent);
+dialog.append(top, body, live);
 document.body.append(dialog);
 dialog.showModal();
 input.focus();
@@ -263,6 +269,62 @@ let composing = false;
 let explainAccess = false;
 let renderedQuery = "";
 let coverageSignature = "";
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let bodyAnimation: Animation | undefined;
+let bodyHeight = 0;
+// Measure natural content, then grow the shell downward without scaling text.
+// Start interruptions at the current visible height, including rapid clear/type.
+const resizeBody = () => {
+  dialog.style.setProperty(
+    "--search-height",
+    `${top.getBoundingClientRect().height}px`,
+  );
+  const target = bodyContent.getBoundingClientRect().height;
+  if (Math.abs(target - bodyHeight) < 0.5) return;
+  const current = body.getBoundingClientRect().height;
+  bodyAnimation?.cancel();
+  bodyHeight = target;
+  body.style.height = `${target}px`;
+  if (!reducedMotion.matches) {
+    bodyAnimation = body.animate(
+      [{ height: `${current}px` }, { height: `${target}px` }],
+      {
+        duration: target > current ? 260 : 180,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
+    );
+  }
+};
+const bodyObserver = new ResizeObserver(resizeBody);
+bodyObserver.observe(bodyContent);
+bodyObserver.observe(top);
+reducedMotion.addEventListener("change", () => bodyAnimation?.cancel());
+function syncSearchVisibility() {
+  const expanded = !inSettings && (!!input.value.trim() || activeFilters());
+  const revealing = expanded && results.hidden;
+  results.hidden = !expanded;
+  if (revealing) {
+    results
+      .getAnimations({ subtree: true })
+      .forEach((animation) => animation.cancel());
+    results.animate(
+      reducedMotion.matches
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: "translateY(-4px)" },
+            { opacity: 1, transform: "translateY(0)" },
+          ],
+      { duration: reducedMotion.matches ? 100 : 180, easing: "ease-out" },
+    );
+  }
+  footer.hidden = !inSettings && !expanded;
+  accessPrompt.hidden = !expanded || !explainAccess;
+  clearSearch.hidden = !input.value;
+  input.setAttribute("aria-expanded", String(expanded && hits.length > 0));
+  if (!expanded) input.removeAttribute("aria-activedescendant");
+  return expanded;
+}
+
 function hideAccessExplanation() {
   explainAccess = false;
   accessPrompt.hidden = true;
@@ -373,14 +435,14 @@ if (overlay) {
     true,
   );
 }
-function select(index: number) {
+function select(index: number, scroll = true) {
   selected = Math.max(0, Math.min(index, hits.length - 1));
   [...list.children].forEach((row, i) =>
     row.setAttribute("aria-selected", String(i === selected)),
   );
   if (hits.length) {
     input.setAttribute("aria-activedescendant", "hit-" + hits[selected].id);
-    list.children[selected]?.scrollIntoView({ block: "nearest" });
+    if (scroll) list.children[selected]?.scrollIntoView({ block: "nearest" });
   } else input.removeAttribute("aria-activedescendant");
 }
 function highlighted(text: string, query: string) {
@@ -396,7 +458,7 @@ function highlighted(text: string, query: string) {
 }
 async function activate() {
   const hit = hits[selected];
-  if (!hit) return;
+  if (!hit || results.hidden) return;
   try {
     await request<{ activated?: boolean }>({
       type: "navigate",
@@ -416,7 +478,7 @@ function render(response: SearchResponse) {
   const priorId =
     renderedQuery === input.value ? hits[selected]?.id : undefined;
   renderedQuery = input.value;
-  hits = response.hits;
+  hits = input.value.trim() || activeFilters() ? response.hits : [];
   if (priorId !== undefined && hits.some((h) => h.id === priorId))
     selected = hits.findIndex((h) => h.id === priorId);
   list.replaceChildren();
@@ -704,10 +766,18 @@ function render(response: SearchResponse) {
   const announcement = `${hits.length} ${hits[0]?.approximate ? "close matches" : "results"}.`;
   if (live.textContent !== announcement) live.textContent = announcement;
   document.documentElement.dataset.theme = response.theme;
-  select(Math.min(selected, hits.length - 1));
+  const expanded = syncSearchVisibility();
+  if (expanded) select(Math.min(selected, hits.length - 1), false);
+  else live.textContent = "";
 }
 async function update() {
   if (inSettings || composing) return;
+  // Clearing must collapse immediately, even while a search is in flight.
+  if (!input.value.trim() && !activeFilters()) {
+    hits = [];
+    list.replaceChildren();
+    syncSearchVisibility();
+  }
   const version = ++sequence;
   try {
     const response = await request<SearchResponse>({
@@ -736,7 +806,7 @@ input.onkeydown = (e) => {
   if (e.isComposing || composing) return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
-    select(selected + (e.key === "ArrowDown" ? 1 : -1));
+    if (!results.hidden) select(selected + (e.key === "ArrowDown" ? 1 : -1));
   } else if (e.key === "Enter") {
     e.preventDefault();
     void activate();
@@ -756,6 +826,7 @@ function showSearch() {
   top.hidden = false;
   state.hidden = hits.length > 0;
   settingsButton.hidden = false;
+  syncSearchVisibility();
   input.focus();
   void update();
 }
@@ -768,6 +839,9 @@ function button(text: string, fn: () => Promise<unknown>) {
 }
 async function showSettings() {
   inSettings = true;
+  results.hidden = true;
+  footer.hidden = false;
+  input.setAttribute("aria-expanded", "false");
   hints.hidden = true;
   coverage.hidden = true;
   privacyNote.hidden = false;
@@ -965,14 +1039,18 @@ settingsButton.onclick = () => {
 void shouldExplainAccess()
   .then((show) => {
     explainAccess = show;
-    accessPrompt.hidden = inSettings || !show;
+    syncSearchVisibility();
   })
   .catch(error);
 void request({ type: "refresh" }).then(update).catch(error);
 const polling = setInterval(() => {
   if (!document.hidden && !inSettings) void update();
 }, 2000);
-window.addEventListener("pagehide", () => clearInterval(polling));
+window.addEventListener("pagehide", () => {
+  clearInterval(polling);
+  bodyObserver.disconnect();
+  bodyAnimation?.cancel();
+});
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (sender.id !== chrome.runtime.id || message?.type !== "index-invalidated")

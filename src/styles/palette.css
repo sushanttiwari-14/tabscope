@@ -72,7 +72,8 @@ dialog {
   border: var(--hairline) solid var(--shell-line);
   width: min(var(--palette), calc(100vw - var(--s6)));
   max-width: none;
-  max-height: min(720px, 80vh);
+  --panel-limit: min(720px, 80vh);
+  max-height: var(--panel-limit);
   color: var(--text);
   background: var(--surface);
   background-image: var(--shell-sheen);
@@ -85,12 +86,32 @@ dialog[open] {
   display: flex;
   flex-direction: column;
 }
+/* The input stays fixed; only the measured content below it expands. */
+.palette-body {
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.palette-body-content,
+.search-results {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.palette-body-content {
+  max-height: calc(var(--panel-limit) - var(--search-height, 80px) - 2px);
+}
+.search-results {
+  flex-shrink: 1;
+  overflow: hidden;
+}
 dialog::backdrop {
   background: transparent;
 }
 body:not(.overlay) dialog {
   margin-top: var(--s6);
-  max-height: calc(100dvh - var(--s6) * 2);
+  --panel-limit: calc(100dvh - var(--s6) * 2);
 }
 .top {
   display: flex;
@@ -728,7 +749,7 @@ footer {
   }
   dialog {
     margin-top: 12px;
-    max-height: calc(100dvh - 24px);
+    --panel-limit: calc(100dvh - 24px);
   }
   .list {
     max-height: 55vh;
