@@ -1,3 +1,4 @@
+import { pdfPageURL } from "./pdf";
 import { extractReadable } from "./extract";
 import { SearchIndex, matchesFilters } from "./search";
 import {
@@ -10,6 +11,7 @@ import {
   type Preferences,
   type TabRecord,
   type SearchFilters,
+  type PDFInfo,
 } from "./types";
 const records = new Map<number, TabRecord>();
 const generations = new Map<number, number>();
@@ -35,9 +37,81 @@ const overlayWaits = new Map<
 const recency = new Map<number, number>();
 const retries = new Map<number, number>();
 const pending = new Set<number>();
+const loadingRetries = new Map<number, number>();
 const rerun = new Set<number>();
-const bump = (id: number) =>
+const pdfJobs = new Map<
+  number,
+  { token: string; url: string; generation: number; revision: number }
+>();
+let pdfFlight = Promise.resolve();
+const bump = (id: number) => {
   generations.set(id, (generations.get(id) ?? 0) + 1);
+  const job = pdfJobs.get(id);
+  if (job) {
+    pdfJobs.delete(id);
+    void chrome.runtime
+      .sendMessage({ type: "pdf-cancel", token: job.token })
+      .catch(() => {});
+  }
+};
+async function startPDF(id: number, url: string, generation: number) {
+  if (pdfJobs.has(id)) return;
+  const token = crypto.randomUUID();
+  const job = { token, url, generation, revision: Date.now() };
+  pdfJobs.set(id, job);
+  pdfFlight = pdfFlight
+    .catch(() => {})
+    .then(async () => {
+      if (pdfJobs.get(id) !== job) return;
+      const contexts = await chrome.runtime.getContexts({
+        contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+      });
+      if (!contexts.length)
+        await chrome.offscreen.createDocument({
+          url: "pdf-offscreen.html",
+          reasons: [chrome.offscreen.Reason.WORKERS],
+          justification:
+            "Extract permitted PDFs locally with a bundled PDF.js worker",
+        });
+      if (pdfJobs.get(id) !== job) return;
+      const result = await chrome.runtime.sendMessage({
+        type: "pdf-extract",
+        url,
+        token,
+      });
+      if (!result || result.error)
+        await enqueue(async () => {
+          if (pdfJobs.get(id) !== job) return;
+          const r = records.get(id);
+          if (r) {
+            r.pdf = {
+              pages: r.pdf?.pages ?? [],
+              total: r.pdf?.total ?? 0,
+              searched: r.pdf?.searched ?? 0,
+              textPages: r.pdf?.textPages ?? 0,
+              status: String(
+                result?.error ??
+                  "PDF extraction was interrupted. Retry page text.",
+              ).slice(0, 200),
+            };
+            r.coverage = r.text ? "partial" : "failure";
+            await persist();
+          }
+        });
+    })
+    .catch(async () => {
+      await enqueue(async () => {
+        const r = records.get(id);
+        if (r && pdfJobs.get(id) === job) {
+          r.coverage = "failure";
+          await persist();
+        }
+      });
+    })
+    .finally(() => {
+      if (pdfJobs.get(id) === job) pdfJobs.delete(id);
+    });
+}
 const urgent: (() => Promise<void>)[] = [];
 const background: (() => Promise<void>)[] = [];
 let draining = false;
@@ -64,6 +138,10 @@ function enqueue<T>(fn: () => Promise<T>, interactive = true): Promise<T> {
   });
 }
 function invalidateViews() {
+  for (const id of records.keys())
+    void chrome.tabs
+      .sendMessage(id, { type: "clear-highlights" })
+      .catch(() => {});
   void chrome.runtime
     .sendMessage({ type: "index-invalidated" })
     .catch(() => {});
@@ -88,13 +166,16 @@ async function persist() {
   enforceBudget(records);
   search.sync(records);
   await chrome.storage.session.set({
-    schema: 2,
+    schema: 3,
     recency: [...recency],
     records: [...records.values()],
   });
 }
 async function initialize() {
   if (ready) return;
+  // A restarted worker cannot authenticate a former extraction job token.
+  if (chrome.offscreen && (await chrome.offscreen.hasDocument()))
+    await chrome.offscreen.closeDocument();
   await chrome.storage.session.setAccessLevel({
     accessLevel: "TRUSTED_CONTEXTS",
   });
@@ -120,8 +201,15 @@ async function initialize() {
     "recency",
     "paletteContext",
   ]);
-  if (saved.schema === 2 && Array.isArray(saved.records))
-    for (const r of saved.records as TabRecord[]) records.set(r.id, r);
+  if (saved.schema === 3 && Array.isArray(saved.records))
+    for (const r of saved.records as TabRecord[]) {
+      if (r.pdf && r.coverage === "indexing") {
+        r.coverage = "partial";
+        r.indexedAt = 0;
+        r.pdf.status = `Searched ${r.pdf.searched} of ${r.pdf.total} pages · interrupted`;
+      }
+      records.set(r.id, r);
+    }
   if (Array.isArray(saved.recency))
     for (const pair of saved.recency) {
       if (
@@ -182,6 +270,8 @@ async function reconcile() {
       text: keep ? old.text : "",
       updated: keep ? old.updated : 0,
       indexedAt: keep ? old.indexedAt : undefined,
+      breaks: keep ? old.breaks : undefined,
+      pdf: keep ? old.pdf : undefined,
       state: prefs.paused
         ? "metadata-only"
         : deny
@@ -203,7 +293,8 @@ async function reconcile() {
               ? "sleeping"
               : !access
                 ? "permission"
-                : pending.has(t.id)
+                : (pending.has(t.id) || pdfJobs.has(t.id)) &&
+                    (!keep || !old.indexedAt)
                   ? "indexing"
                   : keep
                     ? (old.coverage ?? (old.text ? "ready" : "failure"))
@@ -228,17 +319,32 @@ async function indexTab(id: number) {
     return;
   }
   const url = tab.url ?? "";
+  if (tab.status === "loading") {
+    const attempt = loadingRetries.get(id) ?? 0;
+    if (attempt < 10) {
+      loadingRetries.set(id, attempt + 1);
+      setTimeout(() => {
+        if ((generations.get(id) ?? 0) === generation) schedule(id);
+      }, 500);
+    }
+    return;
+  }
+  loadingRetries.delete(id);
   if (
+    pdfJobs.has(id) ||
     prefs.paused ||
     tab.incognito ||
     restricted(url) ||
     tab.discarded ||
-    tab.status === "loading" ||
     excluded(url, prefs.exclusions) ||
     !(await allowed(url))
   )
     return;
   try {
+    if (/\.pdf$/i.test(new URL(url).pathname)) {
+      await startPDF(id, url, generation);
+      return;
+    }
     const result = await chrome.scripting.executeScript({
       target: { tabId: id },
       func: extractReadable,
@@ -246,6 +352,31 @@ async function indexTab(id: number) {
     const data = result[0]?.result;
     if (!data || typeof data.text !== "string")
       throw Error("Unsupported extraction");
+    if (data.pdf) {
+      await startPDF(id, url, generation);
+      return;
+    }
+    if (!data.text) {
+      try {
+        const response = await fetch(url, {
+          method: "HEAD",
+          redirect: "error",
+          credentials: "include",
+          signal: AbortSignal.timeout(3000),
+        });
+        if (
+          response.ok &&
+          /^application\/pdf(?:;|$)/i.test(
+            response.headers.get("content-type") ?? "",
+          )
+        ) {
+          await startPDF(id, url, generation);
+          return;
+        }
+      } catch {
+        /* Empty HTML and inaccessible PDF keep metadata. */
+      }
+    }
     const current = await chrome.tabs.get(id);
     if (
       !validCommit(
@@ -266,8 +397,11 @@ async function indexTab(id: number) {
       url,
       title: current.title ?? url,
       text,
+      breaks: data.breaks,
       updated:
-        previous?.url === url && previous.text === text
+        previous?.url === url &&
+        previous.text === text &&
+        JSON.stringify(previous.breaks) === JSON.stringify(data.breaks)
           ? previous.updated
           : Date.now(),
       indexedAt: Date.now(),
@@ -285,6 +419,31 @@ async function indexTab(id: number) {
     await persist();
     await inject(id);
   } catch {
+    if (
+      generation === (generations.get(id) ?? 0) &&
+      !prefs.paused &&
+      (await allowed(url))
+    ) {
+      try {
+        const response = await fetch(url, {
+          method: "HEAD",
+          redirect: "error",
+          credentials: "include",
+          signal: AbortSignal.timeout(3000),
+        });
+        if (
+          response.ok &&
+          /^application\/pdf(?:;|$)/i.test(
+            response.headers.get("content-type") ?? "",
+          )
+        ) {
+          await startPDF(id, url, generation);
+          return;
+        }
+      } catch {
+        /* Inaccessible sources retain metadata. */
+      }
+    }
     const r = records.get(id);
     if (
       r &&
@@ -585,6 +744,107 @@ function uiSender(sender: chrome.runtime.MessageSender) {
 chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
   if (!message || typeof message !== "object" || !("type" in message)) return;
   const m = message as Record<string, unknown>;
+  if (m.type === "pdf-progress") {
+    if (
+      sender.id !== chrome.runtime.id ||
+      sender.url !== chrome.runtime.getURL("pdf-offscreen.html") ||
+      sender.tab ||
+      typeof m.token !== "string" ||
+      typeof m.text !== "string" ||
+      m.text.length > MAX_TEXT ||
+      !m.info ||
+      typeof m.info !== "object"
+    )
+      return;
+    const found = [...pdfJobs.entries()].find(
+      ([, job]) => job.token === m.token,
+    );
+    if (!found) {
+      reply(false);
+      return;
+    }
+    const [id, job] = found;
+    void enqueue(async () => {
+      const tab = await chrome.tabs.get(id).catch(() => undefined);
+      if (
+        !tab ||
+        tab.discarded ||
+        !validCommit(
+          job.generation,
+          generations.get(id) ?? 0,
+          job.url,
+          tab.url ?? "",
+          prefs.paused,
+          excluded(job.url, prefs.exclusions) || !(await allowed(job.url)),
+        ) ||
+        pdfJobs.get(id) !== job
+      )
+        return false;
+      const info = m.info as PDFInfo;
+      if (
+        !Array.isArray(info.pages) ||
+        info.pages.length > 40 ||
+        !Number.isInteger(info.total) ||
+        typeof info.status !== "string" ||
+        info.status.length > 200 ||
+        !Number.isInteger(info.searched) ||
+        info.searched < 0 ||
+        info.searched > 40 ||
+        !Number.isInteger(info.textPages) ||
+        info.textPages < 0 ||
+        info.textPages > info.searched ||
+        info.total < info.searched ||
+        (info.identity !== undefined &&
+          (typeof info.identity !== "string" || info.identity.length > 128)) ||
+        !info.pages.every(
+          (p, i) =>
+            p &&
+            Number.isInteger(p.page) &&
+            p.page === i + 1 &&
+            Number.isInteger(p.start) &&
+            Number.isInteger(p.end) &&
+            p.start >= 0 &&
+            p.end >= p.start &&
+            p.end <= (m.text as string).length &&
+            (p.label === undefined ||
+              (typeof p.label === "string" && p.label.length <= 128)),
+        )
+      )
+        return false;
+      const old = records.get(id);
+      records.set(id, {
+        id,
+        windowId: tab.windowId,
+        title: tab.title ?? job.url,
+        url: job.url,
+        text: m.text as string,
+        updated:
+          old &&
+          old.pdf?.identity === info.identity &&
+          (old.text.startsWith(m.text as string) ||
+            (m.text as string).startsWith(old.text))
+            ? old.updated
+            : job.revision,
+        indexedAt: Date.now(),
+        state: "content",
+        pdf: info,
+        lastActive: old?.lastActive,
+        coverage: m.done
+          ? !info.textPages
+            ? "empty"
+            : info.truncated ||
+                info.searched < info.total ||
+                info.textPages < info.searched
+              ? "partial"
+              : "ready"
+          : "indexing",
+        truncated: info.truncated || info.searched < info.total,
+      });
+      await persist();
+      return true;
+    }).then(reply, () => reply(false));
+    return true;
+  }
   if (m.type === "overlay-ready") {
     const wait =
       typeof m.invocation === "string" && /^[a-f0-9-]{36}$/.test(m.invocation)
@@ -672,6 +932,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
               title: r.title,
               url: r.url,
               reason: r.coverage ?? "failure",
+              detail: r.pdf?.status,
             })),
           total: [...records.values()].filter((r) => coverageFilter(r, filters))
             .length,
@@ -710,13 +971,13 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         return prefs;
       }
       case "clear": {
+        invalidateViews();
         prefs.paused = true;
         records.clear();
         search.rebuild(records);
         await chrome.storage.local.set({ preferences: prefs });
         await chrome.storage.session.clear();
         await savePaletteContext();
-        invalidateViews();
         return prefs;
       }
       case "resume": {
@@ -782,7 +1043,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         if (
           !Number.isInteger(m.id) ||
           typeof m.query !== "string" ||
-          m.query.length > 500
+          m.query.length > 500 ||
+          (m.passageId !== undefined &&
+            (typeof m.passageId !== "string" || m.passageId.length > 100))
         )
           throw Error("Invalid selection");
         const id = m.id as number;
@@ -810,25 +1073,62 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
           return { activated: true };
         }
         if (!m.query || !r.text) return { activated: true };
+        const hit = search
+          .search(m.query, readFilters(m.filters, sender))
+          .find((h) => h.id === id);
+        const target =
+          m.passageId === undefined
+            ? hit?.passage
+            : hit?.passages?.find((p) => p.id === m.passageId);
+        if (m.passageId !== undefined && !target) {
+          await destinationNotice(
+            id,
+            "This page changed. The passage could not be located.",
+          );
+          return { activated: true, highlighted: false };
+        }
+        if (r.pdf && target?.page) {
+          if (
+            prefs.paused ||
+            excluded(r.url, prefs.exclusions) ||
+            !(await allowed(r.url))
+          )
+            throw Error("Website access is required.");
+          const nextURL = pdfPageURL(tab.url!, target.page);
+          // Native viewer does not consistently apply fragment-only changes.
+          // Reload the same tab at the new fragment; no duplicate reader tab.
+          await chrome.tabs.update(id, { url: nextURL });
+          // Wait until Chrome commits the hash before reloading the PDF reader.
+          for (let attempt = 0; attempt < 20; attempt++) {
+            if ((await chrome.tabs.get(id)).url === nextURL) break;
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          await chrome.tabs.reload(id);
+
+          return { activated: true, page: target.page, highlighted: false };
+        }
         try {
           await inject(id);
           const hit = search
             .search(m.query, readFilters(m.filters, sender))
             .find((h) => h.id === id);
-          if (!hit?.passage) return { activated: true };
+          if (!target) return { activated: true, highlighted: false };
           const found = await chrome.tabs.sendMessage(id, {
-            type: "highlight",
-            excerpt: hit?.snippet ?? "",
-            query: hit.matchedTerms?.join(" ") ?? m.query,
+            type: "navigate-match-v2",
+            excerpt: target.text,
+            passages: hit?.passages,
+            passageId: target.id,
+            matchesCapped: hit?.passagesCapped,
+            query: hit?.matchedTerms?.join(" ") ?? m.query,
             expectedURL: tab.url,
-            start: hit?.passage?.start,
+            start: target.start,
           });
           if (hit?.passage && !found)
             await destinationNotice(
               id,
               "Tab opened. The original passage could not be located on this page.",
             );
-          return { activated: true };
+          return { activated: true, highlighted: found === true };
         } catch {
           await destinationNotice(
             id,

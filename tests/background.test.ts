@@ -32,11 +32,19 @@ async function setup() {
   chromeMock = {
     runtime: {
       id: "test",
+      ContextType: { OFFSCREEN_DOCUMENT: "OFFSCREEN_DOCUMENT" },
+      getContexts: async () => [],
       sendMessage: async () => {},
       getURL: (p: string) => "chrome-extension://test/" + p,
       onMessage: runtime,
       onStartup: event(),
       onInstalled: event(),
+    },
+    offscreen: {
+      hasDocument: async () => false,
+      closeDocument: async () => {},
+      Reason: { WORKERS: "WORKERS" },
+      createDocument: async () => {},
     },
     storage: { local: store(local), session: store(session) },
     tabs: {
@@ -84,6 +92,13 @@ async function setup() {
     action: { onClicked: event() },
     commands: { onCommand: event() },
   };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response("", { headers: { "content-type": "text/html" } }),
+    ),
+  );
   vi.stubGlobal("chrome", chromeMock);
   vi.resetModules();
   await import("../src/background");
@@ -117,7 +132,7 @@ describe("background lifecycle integration", () => {
     await send({ type: "refresh" });
     let result = await send({ type: "search", query: "orbital ceramic" });
     expect(result.hits).toHaveLength(1);
-    expect(session.schema).toBe(2);
+    expect(session.schema).toBe(3);
     await setup();
     result = await send({ type: "search", query: "orbital ceramic" });
     expect(result.hits).toHaveLength(1);
@@ -367,7 +382,9 @@ describe("coverage and new message boundaries", () => {
       messages.some((c) => (c[1] as { type: string }).type === "notice"),
     ).toBe(true);
     expect(
-      messages.some((c) => (c[1] as { type: string }).type === "highlight"),
+      messages.some(
+        (c) => (c[1] as { type: string }).type === "navigate-match-v2",
+      ),
     ).toBe(false);
   });
   it("cleans up an unready overlay once and ignores a late acknowledgment", async () => {
@@ -609,4 +626,122 @@ it("updates reused fallback window scope and restores it across worker suspensio
     ),
   );
   expect((result.hits as { id: number }[]).map((h) => h.id)).toEqual([2]);
+});
+
+it.each(["clear", "permission", "exclusion", "navigation", "closure"])(
+  "rejects late PDF page commits after %s",
+  async (kind) => {
+    tabs[0].url = "https://example.com/doc.pdf";
+    let token = "";
+    let finish!: (r: unknown) => void;
+    (
+      chromeMock.runtime as {
+        sendMessage: (m: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).sendMessage = async (m) => {
+      if (m.type === "pdf-extract") {
+        token = m.token as string;
+        return new Promise((resolve) => (finish = resolve));
+      }
+    };
+    await send({ type: "refresh" });
+    await vi.waitFor(() => expect(token).not.toBe(""));
+    if (kind === "clear") await send({ type: "clear" });
+    if (kind === "exclusion")
+      await send({
+        type: "save",
+        theme: "system",
+        exclusions: ["example.com"],
+      });
+    if (kind === "permission") {
+      grant = false;
+      (
+        chromeMock.permissions as { onRemoved: ReturnType<typeof event> }
+      ).onRemoved.listeners[0]();
+    }
+    if (kind === "navigation") {
+      tabs[0].url = "https://example.com/new";
+      (
+        chromeMock.tabs as { onUpdated: ReturnType<typeof event> }
+      ).onUpdated.listeners[0](1, { status: "loading" });
+    }
+    if (kind === "closure") {
+      tabs = [];
+      (
+        chromeMock.tabs as { onRemoved: ReturnType<typeof event> }
+      ).onRemoved.listeners[0](1);
+    }
+    const late = await new Promise((resolve) =>
+      runtime.listeners[0](
+        {
+          type: "pdf-progress",
+          token,
+          text: "private pdf secret",
+          info: {
+            pages: [{ page: 1, start: 0, end: 18 }],
+            total: 1,
+            searched: 1,
+            textPages: 1,
+            status: "ready",
+          },
+          done: true,
+        },
+        { id: "test", url: "chrome-extension://test/pdf-offscreen.html" },
+        resolve,
+      ),
+    );
+    expect(late).toBe(false);
+    finish({ ok: true });
+    expect(
+      (await send({ type: "search", query: "private pdf secret" })).hits,
+    ).toHaveLength(0);
+  },
+);
+
+it("recovers interrupted PDF coverage after worker initialization and rejects old tokens", async () => {
+  tabs[0].url = "https://example.com/doc.pdf";
+  session.schema = 3;
+  session.records = [
+    {
+      id: 1,
+      windowId: 2,
+      url: tabs[0].url,
+      title: "PDF",
+      text: "orbital ceramic",
+      updated: 7,
+      indexedAt: 10,
+      state: "content",
+      coverage: "indexing",
+      pdf: {
+        pages: [{ page: 1, start: 0, end: 15 }],
+        total: 8,
+        searched: 1,
+        textPages: 1,
+        identity: "fixture",
+        status: "Indexing",
+      },
+    },
+  ];
+  await setup();
+  const result = await send({ type: "search", query: "ceramic" });
+  expect(result.hits).toHaveLength(1);
+  expect(
+    (result.coverage as { reason: string; detail: string }[])[0],
+  ).toMatchObject({
+    reason: "partial",
+    detail: "Searched 1 of 8 pages · interrupted",
+  });
+  const old = await new Promise((resolve) =>
+    runtime.listeners[0](
+      {
+        type: "pdf-progress",
+        token: "old-worker-token",
+        text: "secret",
+        info: { pages: [], total: 1, searched: 0, textPages: 0, status: "old" },
+      },
+      { id: "test", url: "chrome-extension://test/pdf-offscreen.html" },
+      resolve,
+    ),
+  );
+  expect(old).toBe(false);
 });

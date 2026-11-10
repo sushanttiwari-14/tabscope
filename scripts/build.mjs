@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { build, context } from "esbuild";
 import { mkdir, copyFile, writeFile, readFile } from "node:fs/promises";
 await mkdir("dist", { recursive: true });
@@ -19,8 +20,38 @@ await writeFile(
     "\n" +
     (await readFile("src/styles/palette.css", "utf8")),
 );
+await copyFile(
+  "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+  "dist/pdf.worker.mjs",
+);
+await copyFile("node_modules/pdfjs-dist/LICENSE", "dist/PDFJS_LICENSE.txt");
+await writeFile(
+  "dist/pdf-offscreen.html",
+  '<!doctype html><html><head><meta charset="utf-8"></head><body><script type="module" src="pdf-offscreen.js"></script></body></html>',
+);
+const agentHash = createHash("sha256");
+for (const file of [
+  "src/content.ts",
+  "src/extract.ts",
+  "src/search.ts",
+  "src/matching.ts",
+  "src/types.ts",
+  "src/styles/tokens.css",
+  "package-lock.json",
+])
+  agentHash.update(await readFile(file));
 const opts = {
-  entryPoints: ["src/background.ts", "src/palette.ts", "src/content.ts"],
+  define: {
+    __TABSCOPE_AGENT_VERSION__: JSON.stringify(
+      agentHash.digest("hex").slice(0, 16),
+    ),
+  },
+  entryPoints: [
+    "src/background.ts",
+    "src/palette.ts",
+    "src/content.ts",
+    "src/pdf-offscreen.ts",
+  ],
   outdir: "dist",
   bundle: true,
   loader: { ".css": "text" },

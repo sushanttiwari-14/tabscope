@@ -5,8 +5,17 @@
   "description": "Find the passage you remember in your open tabs. Private, local, keyboard first.",
   "minimum_chrome_version": "120",
   "incognito": "not_allowed",
-  "permissions": ["tabs", "scripting", "storage", "activeTab"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "activeTab",
+    "offscreen"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -32,7 +41,10 @@
         "palette.css",
         "overlay.html"
       ],
-      "matches": ["http://*/*", "https://*/*"]
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
     }
   ],
   "content_security_policy": {
