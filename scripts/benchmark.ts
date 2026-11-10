@@ -41,6 +41,7 @@ for (const count of [5, 20, 50, 100, 150]) {
   }
   const warm: number[] = [];
   for (let n = 0; n < 250; n++) {
+    index.clearQueryCache();
     const start = performance.now();
     index.search(n % 2 ? "ceramic orbital" : "mechanical lattice");
     warm.push(performance.now() - start);
@@ -55,9 +56,79 @@ for (const count of [5, 20, 50, 100, 150]) {
       coldP50: p(cold, 0.5),
       coldP95: p(cold, 0.95),
       warmRepetitions: warm.length,
+      queryCache: "disabled for comparable algorithm timings",
       warmP50: p(warm, 0.5),
       warmP95: p(warm, 0.95),
       heapMB: Math.round(process.memoryUsage().heapUsed / 2 ** 20),
+    }),
+  );
+}
+// Explicit difficult-query fixtures. Query cache is disabled for every sample.
+for (const scenario of ["repeated-long", "typos", "pdf-pages"] as const) {
+  const records = new Map<number, TabRecord>();
+  for (let id = 0; id < 100; id++) {
+    const text =
+      scenario === "pdf-pages"
+        ? Array.from(
+            { length: 40 },
+            (_, p) =>
+              `Physical page ${p + 1}: orbital ceramic configuration running.`,
+          ).join("\n\f\n")
+        : "orbital ceramic configuration running. "
+            .repeat(1500)
+            .slice(0, 20000);
+    let start = 0;
+    const pages = text.split("\n\f\n").map((t, i) => {
+      const page = { page: i + 1, start, end: start + t.length };
+      start += t.length + 3;
+      return page;
+    });
+    records.set(id, {
+      id,
+      windowId: 1,
+      url: `https://fixture.test/${id}`,
+      title: `Notes ${id}`,
+      text,
+      updated: id,
+      state: "content",
+      pdf:
+        scenario === "pdf-pages"
+          ? {
+              pages,
+              total: 40,
+              searched: 40,
+              textPages: 40,
+              status: "Searched 40 of 40 pages",
+            }
+          : undefined,
+    });
+  }
+  const index = new SearchIndex();
+  index.rebuild(records);
+  const times: number[] = [];
+  let passageCount = 0;
+  for (let n = 0; n < 30; n++) {
+    index.clearQueryCache();
+    const begin = performance.now();
+    const hits = index.search(
+      scenario === "typos" ? "configurtaion cermaic" : '"orbital ceramic"',
+    );
+    times.push(performance.now() - begin);
+    passageCount = hits.reduce((a, h) => a + (h.passages?.length ?? 0), 0);
+  }
+  times.sort((a, b) => a - b);
+  console.log(
+    JSON.stringify({
+      scenario,
+      tabs: 100,
+      queryCache: "disabled",
+      p50: Number(times[15].toFixed(2)),
+      p95: Number(times[28].toFixed(2)),
+      returnedPassages: passageCount,
+      serializedTextUnits: [...records.values()].reduce(
+        (a, r) => a + r.text.length,
+        0,
+      ),
     }),
   );
 }

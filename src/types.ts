@@ -23,7 +23,34 @@ export interface SearchFilters {
   domain?: string;
   exactHost?: boolean;
 }
+export type MatchKind = "exact" | "prefix" | "variant" | "typo";
+export interface Passage {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+  ranges: { start: number; end: number }[];
+  kind: MatchKind;
+  revision: number;
+  before: string;
+  after: string;
+  score: number;
+  page?: number;
+  pageLabel?: string;
+  pageOffset?: number;
+}
+export interface PDFInfo {
+  truncated?: boolean;
+  pages: { page: number; label?: string; start: number; end: number }[];
+  total: number;
+  searched: number;
+  textPages: number;
+  identity?: string;
+  status: string;
+}
 export interface TabRecord {
+  breaks?: number[];
+  pdf?: PDFInfo;
   coverage?: CoverageReason;
   lastActive?: number;
   id: number;
@@ -43,9 +70,13 @@ export interface TabRecord {
   truncated?: boolean;
 }
 export interface Hit {
+  resultsCapped?: boolean;
   coverage?: CoverageReason;
   updated?: number;
-  passage?: { start: number; end: number; text: string };
+  passage?: Passage;
+  passages?: Passage[];
+  passagesCapped?: boolean;
+  pdf?: PDFInfo;
   matchedTerms?: string[];
   approximate?: boolean;
   id: number;
@@ -62,6 +93,7 @@ export interface SearchResponse {
     title: string;
     url: string;
     reason: CoverageReason;
+    detail?: string;
   }[];
   total: number;
   searchable: number;
@@ -116,12 +148,19 @@ export function enforceBudget(
   records: Map<number, TabRecord>,
   budget = MAX_TOTAL,
 ) {
-  let size = [...records.values()].reduce((n, r) => n + r.text.length, 0);
+  // Reserve session quota for the new location maps as well as body strings.
+  const cost = (r: TabRecord) =>
+    r.text.length +
+    (r.breaks?.length ?? 0) * 8 +
+    (r.pdf?.pages.length ?? 0) * 100;
+  let size = [...records.values()].reduce((n, r) => n + cost(r), 0);
   for (const r of [...records.values()].sort((a, b) => a.updated - b.updated)) {
     if (size <= budget) break;
     if (r.text) {
-      size -= r.text.length;
+      size -= cost(r);
       r.text = "";
+      r.pdf = undefined;
+      r.breaks = undefined;
       r.state = "metadata-only";
       r.coverage = "budget";
     }

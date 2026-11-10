@@ -1,3 +1,4 @@
+import { parseQuery, evidence, passages, quality, wordKind } from "./matching";
 import MiniSearch from "minisearch";
 import {
   normalizeHost,
@@ -130,6 +131,7 @@ export function editDistance(a: string, b: string, limit: number): boolean {
   const x = [...a],
     y = [...b];
   if (Math.abs(x.length - y.length) > limit) return false;
+  let previous: number[] = [];
   let row = Array.from({ length: y.length + 1 }, (_, i) => i);
   for (let i = 1; i <= x.length; i++) {
     const next = Array<number>(y.length + 1).fill(limit + 1);
@@ -138,19 +140,24 @@ export function editDistance(a: string, b: string, limit: number): boolean {
       let j = Math.max(1, i - limit);
       j <= Math.min(y.length, i + limit);
       j++
-    )
+    ) {
       next[j] = Math.min(
         row[j] + 1,
         next[j - 1] + 1,
         row[j - 1] + Number(x[i - 1] !== y[j - 1]),
       );
+      if (i > 1 && j > 1 && x[i - 1] === y[j - 2] && x[i - 2] === y[j - 1])
+        next[j] = Math.min(next[j], previous[j - 2] + 1);
+    }
     if (Math.min(...next) > limit) return false;
+    previous = row;
     row = next;
   }
   return row[y.length] <= limit;
 }
 export class SearchIndex {
   private records = new Map<number, TabRecord>();
+  private cache = new Map<string, Hit[]>();
   private spans = new Map<number, ReturnType<typeof wordSpans>>();
   private engine = new MiniSearch<TabRecord>({
     fields: ["title", "url", "text"],
@@ -159,6 +166,7 @@ export class SearchIndex {
     processTerm: normalize,
   });
   rebuild(records: Map<number, TabRecord>) {
+    this.cache.clear();
     this.records = new Map([...records].map(([id, r]) => [id, { ...r }]));
     this.spans = new Map(
       [...records].map(([id, r]) => [id, wordSpans(r.text)]),
@@ -167,6 +175,13 @@ export class SearchIndex {
     this.engine.addAll([...records.values()]);
   }
   sync(records: Map<number, TabRecord>) {
+    if (
+      records.size !== this.records.size ||
+      [...records].some(
+        ([id, r]) => JSON.stringify(r) !== JSON.stringify(this.records.get(id)),
+      )
+    )
+      this.cache.clear();
     for (const [id, old] of this.records)
       if (!records.has(id)) {
         this.engine.remove(old);
@@ -187,9 +202,16 @@ export class SearchIndex {
     }
     this.records = new Map([...records].map(([id, r]) => [id, { ...r }]));
   }
+  clearQueryCache() {
+    this.cache.clear();
+  }
   search(query: string, filters: SearchFilters = {}): Hit[] {
-    const terms = [...new Set(tokenize(query.slice(0, 500)))];
-    if (terms.length > 12 || terms.some((t) => t.length > 80)) return [];
+    const cacheKey = JSON.stringify([query, filters]);
+    const cached = this.cache.get(cacheKey);
+    if (cached) return cached;
+    const components = parseQuery(query);
+    if (!components) return [];
+    const terms = [...new Set(components.flatMap((c) => c.terms))];
     const eligible = (id: number) => {
       const r = this.records.get(id);
       return !!r && matchesFilters(r, filters);
@@ -201,21 +223,22 @@ export class SearchIndex {
       boost: { title: 3, text: 2, url: 1 },
       filter: (r: { id: string | number }) => eligible(Number(r.id)),
     };
-    let approximate = false;
-    let found = terms.length
+    const exact = terms.length
       ? this.engine.search(terms.join(" "), options)
       : [];
-    // Bound recovery to 12,000 distinct candidate words / 500 tabs / 2M units.
-    // Exact/prefix search above always uses the complete index.
-    if (
-      terms.length &&
-      !found.length &&
-      terms.some((t) => t.length >= 4) &&
-      terms.every((t) => t.length <= 40)
-    ) {
+    const expansions = new Map<string, Set<string>>();
+    // One bounded vocabulary pass, at most eight approximate expansions per term.
+    const recoverable = terms.filter(
+      (t) =>
+        /^[a-z]{4,40}$/.test(t) &&
+        components.some(
+          (c) => !c.phrase && c.allowApprox !== false && c.terms.includes(t),
+        ),
+    );
+    if (recoverable.length) {
       const vocabulary = new Set<string>();
-      let chars = 0,
-        tabs = 0;
+      let tabs = 0,
+        chars = 0;
       for (const r of this.records.values()) {
         if (!eligible(r.id)) continue;
         if (++tabs > 500) break;
@@ -223,78 +246,124 @@ export class SearchIndex {
           filters.pageText ? r.text : `${r.title} ${r.url} ${r.text}`
         ).slice(0, 2_000_000 - chars);
         chars += text.length;
-        for (const word of tokenize(text)) {
+        for (const w of [
+          ...(filters.pageText ? [] : wordSpans(r.title + " " + r.url)),
+          ...(this.spans.get(r.id) ?? []),
+        ]) {
           if (vocabulary.size >= 12_000) break;
-          if (word.length <= 42) vocabulary.add(word);
+          if (w.term.length <= 42) vocabulary.add(w.term);
         }
         if (chars >= 2_000_000 || vocabulary.size >= 12_000) break;
       }
-      const alternatives = terms.map((t) =>
-        t.length < 4
-          ? [t]
-          : [...vocabulary]
-              .filter((w) => editDistance(t, w, t.length >= 8 ? 2 : 1))
+      for (const t of recoverable)
+        expansions.set(
+          t,
+          new Set(
+            [...vocabulary]
+              .filter((w) => {
+                const kind = wordKind(t, w, true);
+                return kind === "variant" || kind === "typo";
+              })
               .sort(
                 (a, b) =>
-                  Number(b === t) - Number(a === t) || a.localeCompare(b),
+                  quality[wordKind(t, b, true)!] -
+                    quality[wordKind(t, a, true)!] || a.localeCompare(b),
               )
               .slice(0, 8),
-      );
-      approximate = true;
-      if (alternatives.every((a) => a.length))
-        found = this.engine.search(
-          {
-            combineWith: "AND",
-            queries: alternatives.map((words) => ({
-              combineWith: "OR",
-              queries: words,
-              prefix: false,
-            })),
-          },
-          { ...options, prefix: false },
+          ),
         );
     }
-    const ranked = terms.length
-      ? found.map((r) => ({
-          id: Number(r.id),
-          score: r.score,
-          terms: approximate ? Object.keys(r.match) : terms,
-        }))
+    const approximate =
+      terms.length && [...expansions.values()].some((v) => v.size)
+        ? this.engine.search(
+            {
+              combineWith: "AND",
+              queries: terms.map((t) => ({
+                combineWith: "OR",
+                queries: [t, ...(expansions.get(t) ?? [])],
+                prefix: true,
+              })),
+            },
+            options,
+          )
+        : [];
+    const candidates = terms.length
+      ? [
+          ...new Map(
+            [...exact, ...approximate].map((r) => [
+              Number(r.id),
+              { id: Number(r.id), score: r.score },
+            ]),
+          ).values(),
+        ]
       : [...this.records.keys()]
           .filter(eligible)
-          .map((id) => ({ id, score: 0, terms: [] as string[] }));
-    const hits = ranked.map((item) => {
+          .map((id) => ({ id, score: 0 }));
+    const hits = candidates.flatMap((item) => {
       const r = this.records.get(item.id)!;
-      let p = passage(r.text, item.terms, this.spans.get(r.id));
-      const titleWords = tokenize(r.title);
-      const bodyWords = tokenize(p?.text ?? "");
-      // A complete title match needs no weak body evidence or navigation target.
+      const fields = filters.pageText ? [r.text] : [r.title, r.url, r.text];
+      const groups = fields.map((text) =>
+        evidence(
+          text,
+          components,
+          true,
+          text === r.text ? this.spans.get(r.id) : undefined,
+          text === r.text
+            ? [
+                ...(r.breaks ?? []),
+                ...(r.pdf?.pages.flatMap((p) => [p.start, p.end]) ?? []),
+              ]
+            : [],
+          expansions,
+        ),
+      );
+      const best = components.map((_, i) =>
+        Math.max(0, ...groups.flatMap((g) => g[i].map((m) => quality[m.kind]))),
+      );
+      if (best.some((v) => v === 0)) return [];
+      const weak = best.some((v) => v < 3);
+      const ps = terms.length
+        ? passages(r, components, true, this.spans.get(r.id) ?? [], expansions)
+        : { items: [], capped: false };
+      // Suppress incomplete body evidence when metadata fully explains the query.
+      const metadataComplete =
+        !filters.pageText &&
+        components.every((_, i) => groups.slice(0, 2).some((g) => g[i].length));
       if (
-        item.terms.length &&
-        item.terms.every((term) =>
-          titleWords.some((word) => word.startsWith(term)),
-        ) &&
-        !item.terms.every((term) =>
-          bodyWords.some((word) => word.startsWith(term)),
-        )
+        metadataComplete &&
+        !components.every((_, i) => groups.at(-1)![i].length)
       )
-        p = undefined;
-      return {
-        ...item,
-        score:
-          item.score *
-          (p && normalize(p.text).includes(terms.join(" ")) ? 1.15 : 1),
-        r,
-        p,
-      };
+        ps.items = [];
+      const p = [...ps.items].sort(
+        (a, b) => b.score - a.score || a.start - b.start,
+      )[0];
+      const matched = [
+        ...new Set(
+          groups.flatMap((g) => g.flatMap((ms) => ms.map((m) => m.term))),
+        ),
+      ];
+      return [
+        {
+          r,
+          p,
+          ps,
+          matched,
+          weak,
+          tier: Math.min(4, ...best),
+          score:
+            item.score + best.reduce((a, b) => a + b, 0) * 10 + (p?.score ?? 0),
+        },
+      ];
     });
     hits.sort(
       (a, b) =>
+        Number(a.weak) - Number(b.weak) ||
+        b.tier - a.tier ||
         b.score - a.score ||
         (b.r.lastActive ?? 0) - (a.r.lastActive ?? 0) ||
-        a.id - b.id,
+        a.r.id - b.r.id,
     );
-    return hits.slice(0, 100).map(({ r, p, terms: matched }) => ({
+    const result = hits.slice(0, 100).map(({ r, p, ps, matched, weak }) => ({
       id: r.id,
       title: r.title || r.url,
       url: r.url,
@@ -304,10 +373,18 @@ export class SearchIndex {
         ? `${p.start ? "…" : ""}${p.text}${p.end < r.text.length ? "…" : ""}`
         : "",
       passage: p,
+      passages: ps.items,
+      passagesCapped: ps.capped,
       updated: r.updated,
       matchedTerms: matched,
-      approximate,
+      approximate: weak,
       truncated: r.truncated,
+      pdf: r.pdf,
+      resultsCapped: hits.length > 100,
     }));
+    if (this.cache.size >= 8)
+      this.cache.delete(this.cache.keys().next().value!);
+    this.cache.set(cacheKey, result);
+    return result;
   }
 }

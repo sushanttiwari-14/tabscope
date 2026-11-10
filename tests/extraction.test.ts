@@ -37,3 +37,17 @@ describe("extraction → indexing → search", () => {
     expect(result.truncated).toBe(true);
   });
 });
+
+it("preserves words split across inline nodes and actual whitespace between siblings", () => {
+  document.body.innerHTML =
+    '<p>con<b>fig</b>uration <em>café</em> <a href="#">timeout</a></p><p>next block</p>';
+  const data = extractReadable();
+  expect(data.text).toBe("configuration café timeout next block");
+  expect(data.breaks).toEqual([28]);
+});
+
+it("retains explicit line breaks across inline nodes", () => {
+  document.body.innerHTML =
+    "<p><span>connection</span><br><span>timeout</span></p>";
+  expect(extractReadable().text).toBe("connection timeout");
+});
