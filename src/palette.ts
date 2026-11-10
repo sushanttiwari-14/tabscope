@@ -97,6 +97,7 @@ clearSearch.hidden = true;
 clearSearch.append(icon("close"));
 clearSearch.onclick = () => {
   input.value = "";
+  showRecent = false;
   selected = 0;
   input.focus();
   void update();
@@ -134,6 +135,106 @@ const list = el("ul", "list");
 list.id = "results";
 list.setAttribute("role", "listbox");
 list.setAttribute("aria-label", "Matching tabs");
+const passageControls = el("div", "passage-controls");
+passageControls.setAttribute("role", "group");
+passageControls.setAttribute("aria-label", "Selected tab passages");
+passageControls.hidden = true;
+const passageChoice = new Map<number, string>();
+let showRecent = false;
+const recentToggle = el("button", "quiet recent-toggle", "Recent tabs ↓");
+recentToggle.onclick = () => {
+  showRecent = true;
+  input.focus();
+  void update();
+};
+function syncPassages() {
+  const h = hits[selected];
+  const ps = h?.passages ?? [];
+  passageControls.hidden = ps.length < 2;
+  const signature = JSON.stringify([
+    h?.id,
+    h?.passage?.id,
+    ps.length,
+    h?.passagesCapped,
+  ]);
+  if (passageControls.dataset.signature === signature) return;
+  passageControls.dataset.signature = signature;
+  const focused = passageControls.contains(document.activeElement)
+    ? document.activeElement?.textContent
+    : undefined;
+  passageControls.replaceChildren();
+  if (ps.length < 2) return;
+  const index = ps.findIndex((p) => p.id === h.passage?.id);
+  const change = (delta: number) => {
+    const next = ps[index + delta];
+    if (!next) return;
+    passageChoice.set(h.id, next.id);
+    const current = hits[selected];
+    if (current?.id !== h.id) return;
+    current.passage = next;
+    current.snippet = next.text;
+    const snippet = list
+      .querySelectorAll(".row")
+      .item(selected)
+      ?.querySelector(".snippet");
+    if (snippet) snippet.replaceChildren(passageExcerpt(current));
+    syncPassages();
+  };
+  const prev = button("Previous", async () => change(-1));
+  prev.disabled = index <= 0;
+  const next = button("Next", async () => change(1));
+  next.disabled = index >= ps.length - 1;
+  for (const b of [prev, next]) b.onpointerdown = (e) => e.preventDefault();
+  passageControls.append(
+    prev,
+    el(
+      "span",
+      "",
+      `Passage ${index + 1} of ${ps.length}${h.passagesCapped ? "+" : ""}`,
+    ),
+    next,
+  );
+  if (focused)
+    (
+      [prev, next].find((b) => b.textContent === focused && !b.disabled) ??
+      [prev, next].find((b) => !b.disabled)
+    )?.focus();
+}
+function passageExcerpt(h: Hit) {
+  const frag = document.createDocumentFragment();
+  const p = h.passage;
+  if (!p)
+    return highlighted(h.snippet, h.matchedTerms?.join(" ") ?? input.value);
+  let cursor = p.start;
+  for (const range of p.ranges) {
+    if (range.start < cursor) continue;
+    frag.append(
+      document.createTextNode(
+        p.text.slice(cursor - p.start, range.start - p.start),
+      ),
+      el("mark", "", p.text.slice(range.start - p.start, range.end - p.start)),
+    );
+    cursor = range.end;
+  }
+  frag.append(document.createTextNode(p.text.slice(cursor - p.start)));
+  if (p.kind === "variant" || p.kind === "typo")
+    frag.append(
+      el(
+        "span",
+        "match-quality",
+        `${p.kind === "variant" ? "Similar wording" : "Close match"} · matched ‘${p.ranges.map((r) => p.text.slice(r.start - p.start, r.end - p.start)).join(" · ")}’`,
+      ),
+    );
+  if (p.page)
+    frag.append(
+      el(
+        "span",
+        "match-quality",
+        `Opens page ${p.page}${p.pageLabel && p.pageLabel !== String(p.page) ? ` · label ${p.pageLabel}` : ""}`,
+      ),
+    );
+  return frag;
+}
 const state = el("div", "state");
 const settings = el("section", "settings");
 settings.hidden = true;
@@ -244,13 +345,14 @@ const body = el("div", "palette-body");
 const bodyContent = el("div", "palette-body-content");
 const results = el("section", "search-results");
 results.hidden = true;
-results.append(resultsHeader, list, state);
+results.append(resultsHeader, list, passageControls, state);
 footer.hidden = true;
 bodyContent.append(
   accessPrompt,
   filterControls,
   activeChips,
   coverageDetails,
+  recentToggle,
   results,
   settings,
   alert,
@@ -268,6 +370,7 @@ let inSettings = false;
 let composing = false;
 let explainAccess = false;
 let renderedQuery = "";
+let renderedFilters = "";
 let coverageSignature = "";
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let bodyAnimation: Animation | undefined;
@@ -300,7 +403,10 @@ bodyObserver.observe(bodyContent);
 bodyObserver.observe(top);
 reducedMotion.addEventListener("change", () => bodyAnimation?.cancel());
 function syncSearchVisibility() {
-  const expanded = !inSettings && (!!input.value.trim() || activeFilters());
+  const expanded =
+    !inSettings && (!!input.value.trim() || activeFilters() || showRecent);
+  recentToggle.hidden =
+    inSettings || !!input.value.trim() || activeFilters() || showRecent;
   const revealing = expanded && results.hidden;
   results.hidden = !expanded;
   if (revealing) {
@@ -366,6 +472,10 @@ dialog.addEventListener("cancel", (e) => {
     coverageDetails.hidden = true;
     coverage.setAttribute("aria-expanded", "false");
     coverage.focus();
+  } else if (showRecent && !input.value) {
+    showRecent = false;
+    syncSearchVisibility();
+    input.focus();
   } else void close();
 });
 // Keep keyboard traversal in the palette, including when the browser would
@@ -437,12 +547,17 @@ if (overlay) {
 }
 function select(index: number, scroll = true) {
   selected = Math.max(0, Math.min(index, hits.length - 1));
-  [...list.children].forEach((row, i) =>
+  [...list.querySelectorAll(".row")].forEach((row, i) =>
     row.setAttribute("aria-selected", String(i === selected)),
   );
+  syncPassages();
   if (hits.length) {
     input.setAttribute("aria-activedescendant", "hit-" + hits[selected].id);
-    if (scroll) list.children[selected]?.scrollIntoView({ block: "nearest" });
+    if (scroll)
+      list
+        .querySelectorAll(".row")
+        .item(selected)
+        ?.scrollIntoView({ block: "nearest" });
   } else input.removeAttribute("aria-activedescendant");
 }
 function highlighted(text: string, query: string) {
@@ -458,7 +573,14 @@ function highlighted(text: string, query: string) {
 }
 async function activate() {
   const hit = hits[selected];
-  if (!hit || results.hidden) return;
+  if (
+    !hit ||
+    results.hidden ||
+    composing ||
+    renderedQuery !== input.value ||
+    renderedFilters !== JSON.stringify(filters())
+  )
+    return;
   try {
     await request<{ activated?: boolean }>({
       type: "navigate",
@@ -466,6 +588,7 @@ async function activate() {
       query: input.value,
       url: hit.url,
       updated: hit.updated,
+      passageId: hit.passage?.id,
       filters: filters(),
     });
     await close();
@@ -477,10 +600,26 @@ async function activate() {
 function render(response: SearchResponse) {
   const priorId =
     renderedQuery === input.value ? hits[selected]?.id : undefined;
+  if (renderedQuery !== input.value) passageChoice.clear();
+  const oldScroll = list.scrollTop;
   renderedQuery = input.value;
-  hits = input.value.trim() || activeFilters() ? response.hits : [];
+  renderedFilters = JSON.stringify(filters());
+  list.removeAttribute("aria-busy");
+  hits =
+    input.value.trim() || activeFilters()
+      ? response.hits
+      : showRecent
+        ? response.hits.slice(0, 6)
+        : [];
   if (priorId !== undefined && hits.some((h) => h.id === priorId))
     selected = hits.findIndex((h) => h.id === priorId);
+  for (const h of hits) {
+    const p = h.passages?.find((p) => p.id === passageChoice.get(h.id));
+    if (p) {
+      h.passage = p;
+      h.snippet = p.text;
+    }
+  }
   list.replaceChildren();
   const hasQuery = tokenize(input.value).length > 0;
   clearSearch.hidden = !input.value;
@@ -493,6 +632,11 @@ function render(response: SearchResponse) {
     excluded: "Excluded",
   };
   for (const [i, h] of hits.entries()) {
+    if (h.approximate && (i === 0 || !hits[i - 1].approximate)) {
+      const group = el("li", "approximate-heading", "Approximate matches");
+      group.setAttribute("role", "presentation");
+      list.append(group);
+    }
     const row = el("li", "row");
     row.id = "hit-" + h.id;
     row.setAttribute("role", "option");
@@ -516,7 +660,7 @@ function render(response: SearchResponse) {
       "meta",
       [
         host,
-        h.approximate ? "Close match" : "",
+        h.approximate && !h.passage ? "Close match" : "",
         label,
         h.truncated && (h.state === "content" || h.state === "stale")
           ? "Partial text"
@@ -542,10 +686,12 @@ function render(response: SearchResponse) {
     if (hasQuery && (bodyEvidence || urlEvidence)) {
       const snippet = el("p", "snippet");
       snippet.append(
-        highlighted(
-          bodyEvidence || "URL · " + urlEvidence,
-          h.matchedTerms?.join(" ") ?? input.value,
-        ),
+        bodyEvidence
+          ? passageExcerpt(h)
+          : highlighted(
+              "URL · " + urlEvidence,
+              h.matchedTerms?.join(" ") ?? input.value,
+            ),
       );
       copy.append(snippet);
     }
@@ -562,6 +708,7 @@ function render(response: SearchResponse) {
     };
     list.append(row);
   }
+  list.scrollTop = oldScroll;
   state.hidden = hits.length > 0;
   state.replaceChildren(
     el(
@@ -583,12 +730,9 @@ function render(response: SearchResponse) {
   );
   if (activeFilters())
     state.append(button("Clear filters", async () => clearFilters()));
-  resultsLabel.textContent = hits[0]?.approximate
-    ? "Close matches"
-    : hasQuery
-      ? "Search results"
-      : "Recent tabs";
-  resultsCount.textContent = String(hits.length);
+  resultsLabel.textContent = hasQuery ? "Search results" : "Recent tabs";
+  resultsCount.textContent =
+    String(hits.length) + (hits.some((h) => h.resultsCapped) ? "+" : "");
   resultsHeader.hidden = !hits.length;
   // Keep focused chips stable across polling; only rebuild when filter values change.
   const chipSignature = JSON.stringify(filters());
@@ -658,7 +802,7 @@ function render(response: SearchResponse) {
       el(
         "p",
         "",
-        "Only loaded, permitted page text is searched. Unloaded sections, frames, PDFs and images are not included.",
+        "Only loaded, permitted page text is searched. Unloaded sections, frames, images are not included. Supported PDFs are fetched and parsed locally.",
       ),
     );
     const descriptions = {
@@ -705,7 +849,7 @@ function render(response: SearchResponse) {
         el(
           "span",
           "",
-          `${entry.title || entry.url} · ${descriptions[entry.reason]}`,
+          `${entry.title || entry.url} · ${entry.detail ?? descriptions[entry.reason]}`,
         ),
       );
       const recover = async (action: string) => {
@@ -779,6 +923,13 @@ async function update() {
     syncSearchVisibility();
   }
   const version = ++sequence;
+  if (
+    renderedQuery !== input.value ||
+    renderedFilters !== JSON.stringify(filters())
+  ) {
+    resultsLabel.textContent = "Searching…";
+    list.setAttribute("aria-busy", "true");
+  }
   try {
     const response = await request<SearchResponse>({
       type: "search",
@@ -787,16 +938,22 @@ async function update() {
     });
     if (version === sequence && !inSettings) render(response);
   } catch (e) {
-    if (version === sequence) error(e);
+    if (version === sequence) {
+      list.removeAttribute("aria-busy");
+      resultsLabel.textContent = "Search unavailable";
+      error(e);
+    }
   }
 }
 input.oninput = () => {
   selected = 0;
+  if (input.value) showRecent = false;
   alert.hidden = true;
   void update();
 };
 input.addEventListener("compositionstart", () => {
   composing = true;
+  ++sequence;
 });
 input.addEventListener("compositionend", () => {
   composing = false;
@@ -806,7 +963,11 @@ input.onkeydown = (e) => {
   if (e.isComposing || composing) return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
-    if (!results.hidden) select(selected + (e.key === "ArrowDown" ? 1 : -1));
+    if (results.hidden && !input.value && e.key === "ArrowDown") {
+      showRecent = true;
+      void update();
+    } else if (!results.hidden)
+      select(selected + (e.key === "ArrowDown" ? 1 : -1));
   } else if (e.key === "Enter") {
     e.preventDefault();
     void activate();
@@ -1024,7 +1185,7 @@ async function showSettings() {
       el(
         "p",
         "settings-limit",
-        "Only loaded, permitted page text is searched. PDFs, frames, images and unloaded content aren't included.",
+        "Only loaded, permitted page text is searched. Frames, images and unloaded content aren't included. Supported PDFs open at the matching page.",
       ),
     );
     settings.append(feedback);

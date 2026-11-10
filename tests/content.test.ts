@@ -10,6 +10,7 @@ let listener: (
 ) => void;
 let highlights: Map<string, { ranges: Range[] }>;
 beforeEach(async () => {
+  delete (globalThis as { __tabscopeAgent?: unknown }).__tabscopeAgent;
   vi.useFakeTimers();
   vi.resetModules();
   delete (globalThis as { __tabscope?: boolean }).__tabscope;
@@ -31,6 +32,7 @@ beforeEach(async () => {
       getURL: (p: string) => "chrome-extension://test/" + p,
       sendMessage: vi.fn(async () => {}),
       onMessage: {
+        removeListener: vi.fn(),
         addListener: (fn: typeof listener) => {
           listener = fn;
         },
@@ -41,6 +43,12 @@ beforeEach(async () => {
   await import("../src/content");
 });
 afterEach(() => {
+  (
+    globalThis as typeof globalThis & {
+      __tabscopeAgent?: { dispose: () => void };
+    }
+  ).__tabscopeAgent?.dispose();
+  window.dispatchEvent(new Event("pagehide"));
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -57,14 +65,14 @@ it("targets repeated passages by original source position and folds Unicode with
   document.body.innerHTML = `<p>${text}</p><p>${"filler ".repeat(50)}</p><p id="target">${text}</p>`;
   expect(
     send({
-      type: "highlight",
+      type: "navigate-match-v2",
       excerpt: text,
       query: "cafe horizon",
       start: 380,
       expectedURL: location.href,
     }),
   ).toBe(true);
-  const range = highlights.get("tabscope-match")!.ranges[0];
+  const range = highlights.get("tabscope-active-match")!.ranges[0];
   expect(range.toString()).toBe("café horizon");
   expect(range.startContainer.parentElement?.id).toBe("target");
 });
@@ -72,7 +80,7 @@ it("does not fall back to an unrelated query occurrence when a passage changed",
   document.body.textContent = "event navigation only";
   expect(
     send({
-      type: "highlight",
+      type: "navigate-match-v2",
       excerpt: "The event horizon was here",
       query: "event horizon",
       start: 0,
@@ -82,7 +90,7 @@ it("does not fall back to an unrelated query occurrence when a passage changed",
   expect(highlights.size).toBe(0);
   expect(
     send({
-      type: "highlight",
+      type: "navigate-match-v2",
       excerpt: "event",
       query: "event",
       start: 0,
@@ -109,4 +117,281 @@ it("does not schedule page extraction for its own status insertion or removal", 
   await Promise.resolve();
   await vi.advanceTimersByTimeAsync(7100);
   expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+});
+
+it("keeps the selected match highlighted until dismissal and supports buttons and arrows", async () => {
+  document.body.innerHTML =
+    '<p id="first">Orbit first passage</p><p id="second">Orbit second passage</p>';
+  await Promise.resolve();
+  const { SearchIndex } = await import("../src/search");
+  const { extractReadable } = await import("../src/extract");
+  const data = extractReadable();
+  const index = new SearchIndex();
+  index.rebuild(
+    new Map([
+      [
+        1,
+        {
+          id: 1,
+          windowId: 1,
+          url: location.href,
+          title: "Fixture",
+          text: data.text,
+          breaks: data.breaks,
+          updated: 1,
+          state: "content",
+        },
+      ],
+    ]),
+  );
+  const hit = index.search("orbit")[0];
+  expect(
+    send({
+      type: "navigate-match-v2",
+      expectedURL: location.href,
+      query: "orbit",
+      excerpt: hit.passage!.text,
+      start: hit.passage!.start,
+      passages: hit.passages,
+      passageId: hit.passage!.id,
+    }),
+  ).toBe(true);
+  await Promise.resolve();
+  expect(
+    highlights.get("tabscope-active-match")!.ranges[0].startContainer
+      .parentElement?.id,
+  ).toBe("first");
+  await vi.advanceTimersByTimeAsync(7100);
+  expect(highlights.has("tabscope-active-match")).toBe(true);
+  const nav = document.querySelector("#tabscope-match-navigator")!;
+  expect(nav).not.toBeNull();
+  const buttons = nav.querySelectorAll("button");
+  expect(buttons[0].disabled).toBe(true);
+  buttons[1].click();
+  await Promise.resolve();
+  expect(
+    highlights.get("tabscope-active-match")!.ranges[0].startContainer
+      .parentElement?.id,
+  ).toBe("second");
+  const nextNav = document.querySelector("#tabscope-match-navigator")!;
+  expect(nextNav.textContent).toContain("Match 2 of 2");
+  expect(nextNav.querySelectorAll("button")[1].disabled).toBe(true);
+  const unrelated = document.createElement("div");
+  unrelated.textContent = "Live clock updated";
+  document.body.append(unrelated);
+  await Promise.resolve();
+  expect(highlights.has("tabscope-active-match")).toBe(true);
+  expect(document.querySelector("#tabscope-match-navigator")).not.toBeNull();
+  nextNav.querySelectorAll("button")[0].click();
+  await Promise.resolve();
+  expect(
+    highlights.get("tabscope-active-match")!.ranges[0].startContainer
+      .parentElement?.id,
+  ).toBe("first");
+  const key = (name: string, options: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent("keydown", {
+      key: name,
+      bubbles: true,
+      cancelable: true,
+      ...options,
+    });
+    document.body.dispatchEvent(event);
+    return event;
+  };
+  expect(key("ArrowLeft").defaultPrevented).toBe(true);
+  expect(
+    document.querySelector("#tabscope-match-navigator")!.textContent,
+  ).toContain("Match 1 of 2");
+  for (const options of [
+    { altKey: true },
+    { ctrlKey: true },
+    { metaKey: true },
+    { shiftKey: true },
+    { isComposing: true },
+  ])
+    expect(key("ArrowRight", options).defaultPrevented).toBe(false);
+  const field = document.createElement("input");
+  document.body.append(field);
+  await Promise.resolve();
+  const editKey = new KeyboardEvent("keydown", {
+    key: "ArrowRight",
+    bubbles: true,
+    cancelable: true,
+  });
+  field.dispatchEvent(editKey);
+  expect(editKey.defaultPrevented).toBe(false);
+  expect(
+    document.querySelector("#tabscope-match-navigator")!.textContent,
+  ).toContain("Match 1 of 2");
+  expect(key("ArrowRight").defaultPrevented).toBe(true);
+  expect(
+    document.querySelector("#tabscope-match-navigator")!.textContent,
+  ).toContain("Match 2 of 2");
+  expect(
+    highlights.get("tabscope-active-match")!.ranges[0].startContainer
+      .parentElement?.id,
+  ).toBe("second");
+  key("ArrowRight");
+  expect(
+    document.querySelector("#tabscope-match-navigator")!.textContent,
+  ).toContain("Match 2 of 2");
+  key("ArrowLeft");
+  expect(
+    document.querySelector("#tabscope-match-navigator")!.textContent,
+  ).toContain("Match 1 of 2");
+  document
+    .querySelector("#tabscope-match-navigator")!
+    .querySelectorAll("button")[2]
+    .click();
+  expect(highlights.size).toBe(0);
+  expect(document.querySelector("#tabscope-match-navigator")).toBeNull();
+});
+
+it("navigates every occurrence inside one passage and ends on an outside click", async () => {
+  const text = "Orbit one Orbit two Orbit three";
+  document.body.innerHTML =
+    '<p id="words">' + text + '</p><button id="outside">Outside</button>';
+  await Promise.resolve();
+  const ranges = [...text.matchAll(/Orbit/g)].map((m) => ({
+    start: m.index!,
+    end: m.index! + 5,
+  }));
+  const passage = {
+    id: "fixture",
+    start: 0,
+    end: text.length,
+    text,
+    ranges,
+    kind: "exact",
+    revision: 1,
+    before: "",
+    after: "",
+    score: 1,
+  };
+  expect(
+    send({
+      type: "navigate-match-v2",
+      expectedURL: location.href,
+      query: "orbit",
+      excerpt: text,
+      start: 0,
+      passages: [passage],
+      passageId: passage.id,
+    }),
+  ).toBe(true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(highlights.has("tabscope-active-match")).toBe(true);
+  const press = (key: string) => {
+    const e = new KeyboardEvent("keydown", {
+      key,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.body.dispatchEvent(e);
+    return e;
+  };
+  expect(highlights.get("tabscope-active-match")!.ranges[0].startOffset).toBe(
+    0,
+  );
+  press("ArrowRight");
+  expect(highlights.get("tabscope-active-match")!.ranges[0].startOffset).toBe(
+    10,
+  );
+  expect(
+    document.querySelector("#tabscope-match-navigator")!.textContent,
+  ).toContain("Match 2 of 3");
+  document
+    .querySelector("#tabscope-match-navigator")!
+    .querySelectorAll("button")[1]
+    .click();
+  expect(highlights.get("tabscope-active-match")!.ranges[0].startOffset).toBe(
+    20,
+  );
+  press("ArrowLeft");
+  expect(highlights.get("tabscope-active-match")!.ranges[0].startOffset).toBe(
+    10,
+  );
+  const outside = document.querySelector("#outside")!;
+  const clicked = vi.fn();
+  outside.addEventListener("click", clicked);
+  outside.dispatchEvent(
+    new MouseEvent("click", { bubbles: true, cancelable: true }),
+  );
+  expect(clicked).toHaveBeenCalledOnce();
+  expect(highlights.size).toBe(0);
+  expect(document.querySelector("#tabscope-match-navigator")).toBeNull();
+  expect(press("ArrowRight").defaultPrevented).toBe(false);
+});
+
+it("does not rescan the full DOM for each arrow and relocates equivalent replaced nodes", async () => {
+  const text = "Orbit one Orbit two";
+  document.body.innerHTML = '<p id="words">' + text + "</p>";
+  await Promise.resolve();
+  const rangeList = [...text.matchAll(/Orbit/g)].map((m) => ({
+    start: m.index!,
+    end: m.index! + 5,
+  }));
+  const p = {
+    id: "cache",
+    start: 0,
+    end: text.length,
+    text,
+    ranges: rangeList,
+    kind: "exact",
+    revision: 1,
+    before: "",
+    after: "",
+    score: 1,
+  };
+  const scans = vi.spyOn(document, "createTreeWalker");
+  send({
+    type: "navigate-match-v2",
+    expectedURL: location.href,
+    query: "orbit",
+    excerpt: text,
+    start: 0,
+    passages: [p],
+    passageId: p.id,
+  });
+  await Promise.resolve();
+  expect(scans).toHaveBeenCalledTimes(1);
+  for (const key of ["ArrowRight", "ArrowLeft", "ArrowRight"])
+    document.body.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+    );
+  await Promise.resolve();
+  expect(scans).toHaveBeenCalledTimes(1);
+  expect(highlights.get("tabscope-active-match")!.ranges[0].startOffset).toBe(
+    10,
+  );
+  document.querySelector("#words")!.textContent = text;
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(highlights.get("tabscope-active-match")!.ranges[0].startOffset).toBe(
+    10,
+  );
+  expect(scans).toHaveBeenCalledTimes(2);
+  scans.mockRestore();
+});
+it("replaces a previous agent build and ignores the legacy highlight protocol", async () => {
+  const own = globalThis as typeof globalThis & {
+    __tabscopeAgent: { version: string; dispose: () => void };
+  };
+  const previous = listener;
+  own.__tabscopeAgent.version = "older-build";
+  vi.resetModules();
+  await import("../src/content");
+  expect(chrome.runtime.onMessage.removeListener).toHaveBeenCalledWith(
+    previous,
+  );
+  expect(listener).not.toBe(previous);
+  expect(
+    send({
+      type: "highlight",
+      expectedURL: location.href,
+      query: "orbit",
+      excerpt: "orbit",
+      start: 0,
+    }),
+  ).toBeUndefined();
 });

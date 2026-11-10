@@ -827,3 +827,53 @@ footer {
   background: var(--button-accent);
   border-color: transparent;
 }
+.passage-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 12px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.passage-controls button {
+  font-size: 11px;
+  min-height: 32px;
+}
+.match-quality {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.snippet:has(.match-quality) {
+  -webkit-line-clamp: 4;
+}
+.snippet,
+.copy {
+  overflow-wrap: anywhere;
+}
+.approximate-heading {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 10px 12px 4px;
+}
+
+.recent-toggle {
+  align-self: flex-start;
+  margin: 0 18px 8px;
+  font-size: 11px;
+}
+/* At high zoom / short windows, scroll the content as a whole so metadata and
+   passage controls cannot squeeze the result list to zero height. */
+@media (max-height: 500px) {
+  dialog, body:not(.overlay) dialog {
+    margin-top: 4px;
+    --panel-limit: calc(100dvh - 8px);
+  }
+  .palette-body-content { overflow-y: auto; }
+  .search-results { display: block; overflow: visible; flex-shrink: 0; }
+  .list { max-height: none; overflow: visible; }
+  .palette-body-content > * { flex-shrink: 0; }
+}

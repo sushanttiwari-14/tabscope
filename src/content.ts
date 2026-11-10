@@ -1,12 +1,26 @@
 import { wordSpans, tokenize } from "./search";
+import { extractReadable } from "./extract";
+import type { Passage } from "./types";
 import tokensCSS from "./styles/tokens.css";
 // Inline positioning survives host CSP; backdrop values share the UI tokens.
 const backdrop = /--backdrop:\s*([^;]+)/.exec(tokensCSS)![1];
 const backdropBlur = /--backdrop-blur:\s*([^;]+)/.exec(tokensCSS)![1];
 // Isolated world singleton; reinjection must not duplicate observers/listeners.
-const own = globalThis as typeof globalThis & { __tabscope?: boolean };
-if (!own.__tabscope) {
+declare const __TABSCOPE_AGENT_VERSION__: string;
+const version =
+  typeof __TABSCOPE_AGENT_VERSION__ === "string"
+    ? __TABSCOPE_AGENT_VERSION__
+    : "test";
+const own = globalThis as typeof globalThis & {
+  __tabscope?: boolean;
+  __tabscopeAgent?: { version: string; dispose: () => void };
+};
+if (own.__tabscopeAgent?.version !== version) {
+  own.__tabscopeAgent?.dispose();
   own.__tabscope = true;
+  const lifetime = new AbortController();
+  const signal = lifetime.signal;
+  let sourceRevision = 0;
   let host: HTMLElement | null = null,
     prior: Element | null = null,
     timer: ReturnType<typeof setTimeout> | undefined,
@@ -42,66 +56,90 @@ if (!own.__tabscope) {
     document.documentElement.append(host);
     frame.focus();
   };
-  function highlight(excerpt: string, query: string, start: number) {
-    // Use the selected source passage without clipping markers.
-    const target = excerpt.replace(/^…|…$/g, "").trim();
-    const walker = document.createTreeWalker(
-      document.body ?? document.documentElement,
-      NodeFilter.SHOW_TEXT,
-    );
-    const nodes: { node: Node; start: number; map: number[] }[] = [];
-    let combined = "";
-    let count = 0;
-    while (walker.nextNode() && combined.length < 100_000 && count++ < 20_000) {
-      const node = walker.currentNode;
-      const p = node.parentElement;
+  let restoreActive: (() => boolean) | undefined;
+  let restoreQueued = false;
+  let activeRanges: { range: Range; text: string }[] = [];
+  const clearInk = () => {
+    (
+      CSS as typeof CSS & { highlights?: Map<string, unknown> }
+    ).highlights?.delete("tabscope-active-match");
+    document.getElementById("tabscope-active-highlight-style")?.remove();
+    activeRanges = [];
+  };
+  const cleanupHighlight = () => {
+    restoreActive = undefined;
+    clearInk();
+    document.getElementById("tabscope-match-navigator")?.remove();
+  };
+  window.addEventListener("pagehide", cleanupHighlight, { signal });
+  const dismissOutside = (event: Event) => {
+    const nav = document.getElementById("tabscope-match-navigator");
+    if (
+      (activeRanges.length || nav) &&
+      !event.composedPath().includes(nav as EventTarget)
+    )
+      cleanupHighlight();
+  };
+  document.addEventListener("pointerdown", dismissOutside, {
+    capture: true,
+    signal,
+  });
+  document.addEventListener("click", dismissOutside, { capture: true, signal });
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      const nav = document.getElementById("tabscope-match-navigator");
       if (
-        !p ||
-        p.closest(
-          'script,style,noscript,template,svg,canvas,input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),#tabscope-root,#tabscope-notice,[hidden],[aria-hidden="true"]',
-        )
-      )
-        continue;
-      let visible = true;
-      for (let e: Element | null = p; e; e = e.parentElement) {
-        const style = getComputedStyle(e);
-        if (
-          style.display === "none" ||
-          style.visibility === "hidden" ||
-          style.visibility === "collapse" ||
-          style.opacity === "0"
-        ) {
-          visible = false;
-          break;
-        }
+        nav &&
+        !event.defaultPrevented &&
+        !event.isComposing &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        // Keep caret movement, form controls, page widgets and browser history
+        // shortcuts native. These arrows apply only to an active find session.
+        const editing = event
+          .composedPath()
+          .some(
+            (target) =>
+              target instanceof Element &&
+              target.closest(
+                'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="slider"],[role="tab"],[role="option"],[role="gridcell"],video,audio',
+              ),
+          );
+        if (editing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const control =
+          nav.querySelectorAll("button")[event.key === "ArrowLeft" ? 0 : 1];
+        if (control && !control.disabled) control.click();
+        return;
       }
-      if (!visible) continue;
-      const raw = (node.textContent ?? "").slice(0, 100_000 - combined.length);
-      const map: number[] = [];
-      let compact = "";
-      let space = false;
-      for (let i = 0; i < raw.length; i++) {
-        if (/\s/.test(raw[i])) {
-          if (compact && !space) {
-            compact += " ";
-            map.push(i);
-          }
-          space = true;
-        } else {
-          compact += raw[i];
-          map.push(i);
-          space = false;
-        }
+      if (
+        event.key === "Escape" &&
+        document.getElementById("tabscope-match-navigator")
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        cleanupHighlight();
       }
-      if (compact.endsWith(" ")) {
-        compact = compact.slice(0, -1);
-        map.pop();
-      }
-      if (!compact) continue;
-      if (combined) combined += " ";
-      nodes.push({ node, start: combined.length, map });
-      combined += compact;
-    }
+    },
+    { signal },
+  );
+  function highlight(
+    excerpt: string,
+    query: string,
+    start: number,
+    evidence?: Passage,
+    data = extractReadable(true),
+  ) {
+    cleanupHighlight();
+    const target = excerpt.trim();
+    const combined = data.text;
+    const nodes = data.segments ?? [];
     // Select the occurrence nearest its indexed source offset; never jump to a
     // random query word when the selected passage has disappeared.
     let at = -1;
@@ -110,7 +148,21 @@ if (!own.__tabscope) {
     for (let count = 0; count < 1000; count++) {
       const occurrence = combined.indexOf(target, cursor);
       if (occurrence < 0) break;
-      const delta = Math.abs(occurrence - start);
+      const context = evidence
+        ? Number(
+            combined.slice(
+              Math.max(0, occurrence - evidence.before.length),
+              occurrence,
+            ) === evidence.before,
+          ) +
+          Number(
+            combined.slice(
+              occurrence + target.length,
+              occurrence + target.length + evidence.after.length,
+            ) === evidence.after,
+          )
+        : 0;
+      const delta = Math.abs(occurrence - start) - context * 200_000;
       if (delta < distance) {
         at = occurrence;
         distance = delta;
@@ -123,11 +175,18 @@ if (!own.__tabscope) {
     const matches = wordSpans(combined.slice(at, at + len)).filter((w) =>
       terms.some((t) => w.term.startsWith(t)),
     );
-    if (matches.length) {
+    if (evidence?.ranges.length) {
+      const offset = evidence.ranges[0].start - evidence.start;
+      len = evidence.ranges.at(-1)!.end - evidence.start - offset;
+      at += offset;
+    } else if (matches.length) {
       const offset = matches[0].start;
       len = matches[matches.length - 1].end - offset;
       at += offset;
     }
+    const relocatedStart =
+      at -
+      (evidence?.ranges.length ? evidence.ranges[0].start - evidence.start : 0);
     const end = at + len - 1;
     const first = nodes.find(
       (n) => n.start <= at && at < n.start + n.map.length,
@@ -135,7 +194,7 @@ if (!own.__tabscope) {
     const final = nodes.find(
       (n) => n.start <= end && end < n.start + n.map.length,
     );
-    if (!first || !final) return false;
+    if (!first?.node || !final?.node) return false;
     const range = document.createRange();
     range.setStart(first.node, first.map[at - first.start]);
     range.setEnd(final.node, final.map[end - final.start] + 1);
@@ -146,26 +205,61 @@ if (!own.__tabscope) {
       }
     ).Highlight;
     if (!HighlightCtor || !css.highlights) return false;
-    let style = document.getElementById("tabscope-highlight-style");
+    let style = document.getElementById("tabscope-active-highlight-style");
     if (!style) {
       style = document.createElement("style");
-      style.id = "tabscope-highlight-style";
+      style.id = "tabscope-active-highlight-style";
       style.textContent =
-        "::highlight(tabscope-match){background:#ffe18a;color:#222}";
+        "::highlight(tabscope-active-match){background:#ffe18a;color:#222;text-decoration:underline;text-decoration-thickness:2px}";
       document.documentElement.append(style);
     }
-    css.highlights.set("tabscope-match", new HighlightCtor(range));
+    const ranges = evidence?.ranges.length
+      ? evidence.ranges.flatMap((match) => {
+          const a = relocatedStart + match.start - evidence.start,
+            b = relocatedStart + match.end - evidence.start - 1;
+          const f = nodes.find(
+              (n) => n.start <= a && a < n.start + n.map.length,
+            ),
+            l = nodes.find((n) => n.start <= b && b < n.start + n.map.length);
+          if (!f?.node || !l?.node) return [];
+          const r = document.createRange();
+          r.setStart(f.node, f.map[a - f.start]);
+          r.setEnd(l.node, l.map[b - l.start] + 1);
+          return [r];
+        })
+      : [range];
+    if (!ranges.length) return false;
+    css.highlights.set("tabscope-active-match", new HighlightCtor(...ranges));
+    activeRanges = ranges.map((range) => ({ range, text: range.toString() }));
     first.node.parentElement?.scrollIntoView({
       block: "center",
       behavior: "instant",
     });
-    setTimeout(() => {
-      css.highlights.delete("tabscope-match");
-      style?.remove();
-    }, 5000);
+    // Center the actual range within each nested scroll container. Centering a
+    // whole long paragraph can leave the words outside its visible portion.
+    for (
+      let parent = first.node.parentElement;
+      parent;
+      parent = parent.parentElement
+    ) {
+      if (
+        parent.scrollHeight > parent.clientHeight &&
+        /(auto|scroll)/.test(getComputedStyle(parent).overflowY)
+      ) {
+        const box = parent.getBoundingClientRect(),
+          match = range.getBoundingClientRect?.();
+        if (match)
+          parent.scrollTop += match.top - box.top - parent.clientHeight / 2;
+      }
+    }
+    const rect = range.getBoundingClientRect?.();
+    if (rect && (rect.top < 100 || rect.bottom > innerHeight - 80))
+      window.scrollBy({ top: rect.top - innerHeight / 2, behavior: "instant" });
     return true;
   }
-  chrome.runtime.onMessage.addListener((m, sender, reply) => {
+  const onMessage: Parameters<
+    typeof chrome.runtime.onMessage.addListener
+  >[0] = (m, sender, reply) => {
     if (
       sender.id !== chrome.runtime.id ||
       sender.tab ||
@@ -173,6 +267,10 @@ if (!own.__tabscope) {
       typeof m !== "object"
     )
       return;
+    if (m.type === "clear-highlights") {
+      cleanupHighlight();
+      reply(true);
+    }
     if (m.type === "ui-ready" && m.invocation === activeInvocation) {
       usable = true;
       reply(true);
@@ -182,7 +280,9 @@ if (!own.__tabscope) {
       typeof m.text === "string" &&
       m.text.length <= 200
     ) {
-      document.getElementById("tabscope-notice")?.remove();
+      document
+        .querySelectorAll("#tabscope-notice")
+        .forEach((note) => note.remove());
       const note = document.createElement("div");
       note.id = "tabscope-notice";
       note.setAttribute("role", "status");
@@ -205,6 +305,7 @@ if (!own.__tabscope) {
       m.invocation.length <= 80 &&
       Number.isInteger(m.windowId)
     ) {
+      cleanupHighlight();
       open(m.invocation, m.windowId);
       reply({
         ready:
@@ -220,7 +321,7 @@ if (!own.__tabscope) {
       reply(true);
     }
     if (
-      m?.type === "highlight" &&
+      m?.type === "navigate-match-v2" &&
       typeof m.excerpt === "string" &&
       typeof m.query === "string" &&
       m.query.length <= 500 &&
@@ -229,10 +330,143 @@ if (!own.__tabscope) {
       Number.isInteger(m.start)
     ) {
       close();
-      reply(highlight(m.excerpt, m.query, m.start));
+      const passages: Passage[] = Array.isArray(m.passages)
+        ? m.passages
+            .slice(0, 32)
+            .filter(
+              (p: Passage) =>
+                p &&
+                typeof p.text === "string" &&
+                p.text.length <= 300 &&
+                Array.isArray(p.ranges) &&
+                typeof p.before === "string" &&
+                typeof p.after === "string",
+            )
+        : [];
+      // A passage can contain several matching words. Destination navigation
+      // follows each distinct occurrence, not just each context paragraph.
+      const seen = new Set<string>();
+      const matches = passages
+        .flatMap((p) =>
+          p.ranges.slice(0, 240).flatMap((range) => {
+            if (
+              !Number.isInteger(range.start) ||
+              !Number.isInteger(range.end) ||
+              range.start < p.start ||
+              range.end > p.end ||
+              range.end <= range.start
+            )
+              return [];
+            const key = `${range.start}:${range.end}`;
+            if (seen.has(key)) return [];
+            seen.add(key);
+            return [
+              {
+                ...p,
+                passageId: p.id,
+                ranges: [range],
+                matchStart: range.start,
+              },
+            ];
+          }),
+        )
+        .sort((a, b) => a.matchStart - b.matchStart)
+        .slice(0, 2048);
+      let index = Math.max(
+        0,
+        matches.findIndex((p) => p.passageId === m.passageId),
+      );
+      let cachedSource: ReturnType<typeof extractReadable> | undefined;
+      let cachedRevision = -1;
+      const show = () => {
+        if (!cachedSource || cachedRevision !== sourceRevision) {
+          cachedSource = extractReadable(true);
+          cachedRevision = sourceRevision;
+        }
+        const focused = document
+          .getElementById("tabscope-match-navigator")
+          ?.contains(document.activeElement)
+          ? document.activeElement?.textContent
+          : undefined;
+        const p = matches[index];
+        const found = highlight(
+          p?.text ?? m.excerpt,
+          m.query,
+          p?.start ?? m.start,
+          p,
+          cachedSource,
+        );
+        if (found) restoreActive = show;
+        if (matches.length && found) {
+          const nav = document.createElement("div");
+          nav.id = "tabscope-match-navigator";
+          nav.setAttribute("role", "region");
+          nav.setAttribute("aria-label", "Passage navigation");
+          nav.style.cssText =
+            "position:fixed;bottom:16px;right:16px;max-width:calc(100vw - 32px);flex-wrap:wrap;z-index:2147483647;background:#24272d;color:white;border-radius:12px;padding:8px;display:flex;gap:8px;align-items:center;font:13px system-ui;box-shadow:0 4px 24px #0004";
+          const control = (label: string, fn: () => void) => {
+            const b = document.createElement("button");
+            b.textContent = label;
+            b.style.cssText =
+              "font:inherit;color:inherit;background:transparent;border:1px solid #888;border-radius:6px;min-height:32px;padding:4px 8px";
+            b.onclick = fn;
+            return b;
+          };
+          const prev = control("Previous", () => {
+            index--;
+            show();
+          });
+          prev.disabled = index <= 0;
+          prev.title = "Previous match (←)";
+          prev.setAttribute("aria-keyshortcuts", "ArrowLeft");
+          const next = control("Next", () => {
+            index++;
+            show();
+          });
+          next.disabled = index >= matches.length - 1;
+          next.title = "Next match (→)";
+          next.setAttribute("aria-keyshortcuts", "ArrowRight");
+          nav.append(
+            prev,
+            document.createTextNode(
+              `Match ${index + 1} of ${matches.length}${m.matchesCapped || seen.size > 2048 ? "+" : ""}`,
+            ),
+            next,
+            Object.assign(document.createElement("span"), {
+              textContent: "← →",
+              title:
+                "Use Left and Right arrow keys to jump; click elsewhere to finish",
+            }),
+            control("Dismiss", cleanupHighlight),
+          );
+          document.documentElement.append(nav);
+          if (focused)
+            (
+              [prev, next].find(
+                (b) => b.textContent === focused && !b.disabled,
+              ) ?? [prev, next].find((b) => !b.disabled)
+            )?.focus();
+        }
+        if (!found && passages.length) {
+          document
+            .querySelectorAll("#tabscope-notice")
+            .forEach((note) => note.remove());
+          const note = document.createElement("div");
+          note.id = "tabscope-notice";
+          note.setAttribute("role", "status");
+          note.style.cssText =
+            "position:fixed;bottom:16px;left:16px;background:#24272d;color:white;padding:12px;border-radius:12px;z-index:2147483647;font:13px system-ui";
+          note.textContent =
+            "This page changed. The passage could not be located.";
+          document.documentElement.append(note);
+        }
+        return found;
+      };
+      reply(show());
     }
-  });
-  new MutationObserver((mutations) => {
+  };
+  chrome.runtime.onMessage.addListener(onMessage);
+  const observer = new MutationObserver((mutations) => {
     if (
       mutations.every((m) => {
         if (
@@ -242,7 +476,7 @@ if (!own.__tabscope) {
             (n) =>
               n instanceof Element &&
               n.matches(
-                "#tabscope-root,#tabscope-highlight-style,#tabscope-notice",
+                "#tabscope-root,#tabscope-active-highlight-style,#tabscope-notice,#tabscope-match-navigator",
               ),
           )
         )
@@ -250,11 +484,30 @@ if (!own.__tabscope) {
         const e =
           m.target instanceof Element ? m.target : m.target.parentElement;
         return !!e?.closest(
-          "#tabscope-root,#tabscope-highlight-style,#tabscope-notice",
+          "#tabscope-root,#tabscope-active-highlight-style,#tabscope-notice,#tabscope-match-navigator",
         );
       })
     )
       return;
+    sourceRevision++;
+    // Ads, clocks, lazy loading and unrelated style changes must not dismiss
+    // destination navigation or immediately erase an otherwise valid match.
+    if (
+      activeRanges.some(
+        ({ range, text }) =>
+          !range.startContainer.isConnected || range.toString() !== text,
+      )
+    ) {
+      const restore = restoreActive;
+      clearInk();
+      if (restore && !restoreQueued) {
+        restoreQueued = true;
+        queueMicrotask(() => {
+          restoreQueued = false;
+          if (restoreActive === restore) restore();
+        });
+      }
+    }
     clearTimeout(timer);
     timer = setTimeout(
       () => {
@@ -265,11 +518,44 @@ if (!own.__tabscope) {
       },
       Math.max(1500, 5000 - (Date.now() - last)),
     );
-  }).observe(document.documentElement, {
-    subtree: true,
-    childList: true,
-    characterData: true,
-    attributes: true,
-    attributeFilter: ["hidden", "aria-hidden", "class", "style"],
   });
+  const observe = () =>
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["hidden", "aria-hidden", "class", "style"],
+    });
+  observe();
+  window.addEventListener(
+    "pagehide",
+    () => {
+      clearTimeout(timer);
+      observer.disconnect();
+      cleanupHighlight();
+      host?.remove();
+      host = null;
+      usable = false;
+    },
+    { signal },
+  );
+  window.addEventListener(
+    "pageshow",
+    (event) => {
+      if (event.persisted) observe();
+    },
+    { signal },
+  );
+  own.__tabscopeAgent = {
+    version,
+    dispose: () => {
+      lifetime.abort();
+      observer.disconnect();
+      clearTimeout(timer);
+      cleanupHighlight();
+      close();
+      chrome.runtime.onMessage.removeListener(onMessage);
+    },
+  };
 }
