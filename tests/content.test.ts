@@ -60,6 +60,53 @@ function send(message: Record<string, unknown>, sender = { id: "test" }) {
   });
   return result;
 }
+it("hands focus back to the overlay after loading and restores the page on close", () => {
+  document.body.innerHTML = '<textarea id="composer"></textarea>';
+  const composer = document.querySelector<HTMLTextAreaElement>("textarea")!;
+  composer.focus();
+  send({ type: "open", invocation: "focus-test", windowId: 1 });
+  const frame = document
+    .getElementById("tabscope-root")!
+    .shadowRoot!.querySelector("iframe")!;
+  const focus = vi.spyOn(frame, "focus");
+  expect(document.body.inert).toBe(true);
+  frame.dispatchEvent(new Event("load"));
+  expect(focus).toHaveBeenCalledOnce();
+  send({ type: "ui-ready", invocation: "focus-test" });
+  expect(focus).toHaveBeenCalledTimes(2);
+  composer.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+  expect(focus).toHaveBeenCalledTimes(3);
+  send({ type: "close", invocation: "focus-test" });
+  expect(document.body.inert).toBe(false);
+  expect(document.activeElement).toBe(composer);
+});
+it("preserves a page that was already inert when the overlay opened", () => {
+  document.body.inert = true;
+  send({ type: "open", invocation: "focus-test", windowId: 1 });
+  send({ type: "close", invocation: "focus-test" });
+  expect(document.body.inert).toBe(true);
+  document.body.inert = false;
+});
+it("cleans up an orphaned overlay and its inert page after extension reload", async () => {
+  const own = globalThis as typeof globalThis & {
+    __tabscopeAgent?: { dispose: () => void };
+  };
+  own.__tabscopeAgent?.dispose();
+  delete own.__tabscopeAgent;
+  const orphan = document.createElement("div");
+  orphan.id = "tabscope-root";
+  orphan.dataset.tabscopeBlockedBody = "true";
+  document.documentElement.append(orphan);
+  document.body.inert = true;
+  vi.resetModules();
+  await import("../src/content");
+  expect(orphan.isConnected).toBe(false);
+  expect(document.body.inert).toBe(false);
+  send({ type: "open", invocation: "after-reload", windowId: 1 });
+  expect(document.querySelectorAll("#tabscope-root")).toHaveLength(1);
+  send({ type: "close", invocation: "after-reload" });
+  expect(document.body.inert).toBe(false);
+});
 it("targets repeated passages by original source position and folds Unicode without corrupting ranges", () => {
   const text = "The café horizon is near.";
   document.body.innerHTML = `<p>${text}</p><p>${"filler ".repeat(50)}</p><p id="target">${text}</p>`;

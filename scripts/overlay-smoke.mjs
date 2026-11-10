@@ -98,6 +98,41 @@ try {
   );
   const compact = await frame.locator("dialog").boundingBox();
   const field = await frame.getByRole("combobox").boundingBox();
+  // Model chat editors that refocus themselves after the extension opens.
+  // Use real keyboard input: locator.fill() would hide a broken focus handoff.
+  await page.evaluate(() => {
+    const editor = document.createElement("div");
+    editor.id = "chat-editor";
+    editor.contentEditable = "true";
+    document.body.append(editor);
+    editor.focus();
+  });
+  await page.keyboard.type("focus-check");
+  assert.equal(await frame.getByRole("combobox").inputValue(), "focus-check");
+  assert.equal(await page.locator("#chat-editor").textContent(), "");
+  assert.equal(await page.evaluate(() => document.body.inert), true);
+  await frame.getByRole("combobox").fill("");
+  // A delayed page focus request must also leave an intentional filter focus
+  // intact, rather than continually forcing the search field.
+  await frame.getByRole("button", { name: "Filters", exact: true }).focus();
+  await page.evaluate(() => document.querySelector("#chat-editor").focus());
+  assert.equal(
+    await frame.getByRole("button", { name: "Filters", exact: true }).evaluate(
+      (button) => document.activeElement === button,
+    ),
+    true,
+  );
+  await frame.getByRole("combobox").focus();
+  // Refocusing the iframe alone is insufficient when its document has lost
+  // the input caret. A repeated invocation must focus the real search input.
+  await frame.getByRole("combobox").evaluate((input) => input.blur());
+  await cdp.send("Extensions.triggerAction", { id, targetId: target });
+  await view.waitForFunction(
+    () => document.activeElement?.getAttribute("role") === "combobox",
+  );
+  await page.keyboard.type("caret-check");
+  assert.equal(await frame.getByRole("combobox").inputValue(), "caret-check");
+  await frame.getByRole("combobox").fill("");
   await page.screenshot({ path: path.join(evidence, "spotlight-compact.png") });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await frame.getByRole("combobox").fill("Fixture");
@@ -202,6 +237,7 @@ try {
   await page.mouse.click(24, 24);
   await page.locator("#tabscope-root").waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => document.activeElement.id), "prior");
+  assert.equal(await page.evaluate(() => document.body.inert), false);
   assert.equal(await page.evaluate(() => window.__outsideClicks), 0);
   // The same backdrop action also dismisses the ordinary search view.
   await cdp.send("Extensions.triggerAction", { id, targetId: target });
@@ -376,6 +412,7 @@ try {
         insideClickAndDragDoNotDismiss: true,
         backdropDoesNotClickThrough: true,
         outsideDismissRestoresFocus: true,
+        chatEditorCannotStealFocus: true,
       },
       null,
       2,

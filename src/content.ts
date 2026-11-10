@@ -17,6 +17,12 @@ const own = globalThis as typeof globalThis & {
 };
 if (own.__tabscopeAgent?.version !== version) {
   own.__tabscopeAgent?.dispose();
+  // Extension reloads invalidate the old isolated world, so its disposer may
+  // no longer be reachable even though its overlay remains in the page.
+  const orphan = document.getElementById("tabscope-root");
+  if (orphan?.dataset.tabscopeBlockedBody === "true" && document.body)
+    document.body.inert = false;
+  orphan?.remove();
   own.__tabscope = true;
   const lifetime = new AbortController();
   const signal = lifetime.signal;
@@ -27,15 +33,41 @@ if (own.__tabscopeAgent?.version !== version) {
     last = 0;
   let activeInvocation = "";
   let usable = false;
+  let blockedBody: HTMLElement | null = null;
+  const focusOverlay = () => {
+    const frame = host?.shadowRoot?.querySelector("iframe");
+    frame?.focus();
+    // Focusing a cross-origin frame can leave its document focused without a
+    // caret in the search field. Ask the frame to focus its actual input too.
+    frame?.contentWindow?.postMessage(
+      { type: "tabscope-focus-search", invocation: activeInvocation },
+      chrome.runtime.getURL(""),
+    );
+  };
+  const releasePage = () => {
+    if (blockedBody) blockedBody.inert = false;
+    blockedBody = null;
+  };
   const close = () => {
     usable = false;
     host?.remove();
     host = null;
+    releasePage();
     if (prior instanceof HTMLElement && prior.isConnected) prior.focus();
   };
+  document.addEventListener(
+    "focusin",
+    (event) => {
+      // Page editors can request focus after the extension action opens. Keep
+      // focus inside the modal iframe without interfering with its controls.
+      if (host?.isConnected && !event.composedPath().includes(host))
+        focusOverlay();
+    },
+    { capture: true, signal },
+  );
   const open = (invocation: string, windowId: number) => {
     if (host?.isConnected) {
-      host.shadowRoot?.querySelector("iframe")?.focus();
+      focusOverlay();
       return;
     }
     activeInvocation = invocation;
@@ -52,9 +84,17 @@ if (own.__tabscopeAgent?.version !== version) {
       `?invocation=${encodeURIComponent(invocation)}&window=${windowId}`;
     frame.style.cssText =
       "display:block;width:100%;height:100%;border:0;outline:none;background:transparent;color-scheme:normal";
+    frame.addEventListener("load", focusOverlay, { signal });
     shadow.append(frame);
+    // The overlay is a sibling of body, so only the underlying page becomes
+    // inert. Preserve a body that was already inert before opening.
+    if (document.body && !document.body.inert) {
+      blockedBody = document.body;
+      blockedBody.inert = true;
+      host.dataset.tabscopeBlockedBody = "true";
+    }
     document.documentElement.append(host);
-    frame.focus();
+    focusOverlay();
   };
   let restoreActive: (() => boolean) | undefined;
   let restoreQueued = false;
@@ -273,6 +313,7 @@ if (own.__tabscopeAgent?.version !== version) {
     }
     if (m.type === "ui-ready" && m.invocation === activeInvocation) {
       usable = true;
+      focusOverlay();
       reply(true);
     }
     if (
@@ -536,6 +577,7 @@ if (own.__tabscopeAgent?.version !== version) {
       cleanupHighlight();
       host?.remove();
       host = null;
+      releasePage();
       usable = false;
     },
     { signal },

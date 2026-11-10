@@ -1227,6 +1227,16 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 // The handshake originates only after the actual modal and input are usable.
 if (overlay) {
   const invocation = new URLSearchParams(location.search).get("invocation");
+  window.addEventListener("message", (event) => {
+    if (
+      event.source === window.parent &&
+      event.data?.type === "tabscope-focus-search" &&
+      event.data.invocation === invocation &&
+      dialog.open &&
+      !inSettings
+    )
+      input.focus({ preventScroll: true });
+  });
   if (invocation)
     requestAnimationFrame(() => {
       if (dialog.open && input.isConnected)
