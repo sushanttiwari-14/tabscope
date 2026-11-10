@@ -1,0 +1,18 @@
+{
+  "browser": "157.0.8103.39",
+  "passed": true,
+  "workerRestartVerified": true,
+  "limitations": [],
+  "tests": [
+    "repeated split-node jumps",
+    "nested scroller",
+    "preview input focus and polling preservation",
+    "native PDF physical pages 3/1/2 in same tab",
+    "suffixless PDF content-type detection",
+    "PDF image-only and malformed status",
+    "light dark narrow reduced motion",
+    "actual Chrome 200% and 400% zoom",
+    "synthetic whitespace column boundaries in real PDF extraction",
+    "40 of 45 physical page cap"
+  ]
+}

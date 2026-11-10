@@ -20,7 +20,7 @@ Clear Data & Pause deletes records/text, resets the in-memory search index, and 
 
 ## Extraction boundaries
 
-Form values, password fields, contenteditable regions, scripts, styles, hidden content and TabScope UI are excluded. Ordinary readable text may still contain medical, financial, personal or business information. Filtering forms does not make text non-sensitive. Only loaded, top-level HTTP(S) DOM text is supported. No embedded frames, shadow tree traversal, virtualized/unloaded text, image/OCR/canvas, built-in PDF reader or browser-internal page content. A malicious page can put text in arbitrary DOM structures or change its content after extraction.
+Form values, password fields, contenteditable regions, scripts, styles, hidden content and TabScope UI are excluded. Ordinary readable text may still contain medical, financial, personal or business information. Filtering forms does not make text non-sensitive. Loaded, top-level HTTP(S) DOM text and supported HTTP(S) text PDFs are supported. No embedded frames, shadow tree traversal, virtualized/unloaded text, image/OCR/canvas, browser-internal page content. Supported HTTP(S) PDF text is extracted locally as described below. A malicious page can put text in arbitrary DOM structures or change its content after extraction.
 
 ## Trust boundaries
 
@@ -28,8 +28,14 @@ The worker owns data. Content agents only report dirty state; privileged UI mess
 
 ## Remaining limits
 
-No cryptographic deletion guarantee. Memory/search-library copies are reclaimed by JavaScript garbage collection, whose timing is outside the extension's control. Exclusion changes cannot remove information already copied by the user or captured outside the extension. CSS Highlight is non-destructive and removed after five seconds, but site styles/content changes can interfere. Permission prompts and browser security controls are owned by Chrome.
+No cryptographic deletion guarantee. Memory/search-library copies are reclaimed by JavaScript garbage collection, whose timing is outside the extension's control. Exclusion changes cannot remove information already copied by the user or captured outside the extension. CSS Highlight is non-destructive and retained until an outside page click, dismissal, reopening, or document navigation; unrelated page updates preserve navigation, but site styles/content changes can interfere. Permission prompts and browser security controls are owned by Chrome.
 
 ## First-open explanation
 
 On first opening the palette, a compact explanation offers an all-websites grant or titles/URLs-only search. A permission request occurs only from the grant button’s user gesture; nothing is granted by default. Grant, denial, or metadata-only choice saves a local `contentAccessExplained` flag so it does not recur. Existing all-site grants suppress the explanation. Chrome retains the actual website permissions. The explanation flag is retained by Clear Data alongside other preferences.
+
+## PDF fetch and retained data (2026-11-09)
+
+PDF support makes bounded HEAD/GET requests to the already-open source URL, using existing optional host permission and ordinary browser credentials. These requests may reach the source site's logs or consume a signed link. No uploads, parsing service, telemetry or backend is involved. Redirects are refused; permission is never expanded automatically. POST-only, non-repeatable, blob/file/internal and download-only workflows are unsupported. Error statuses include authentication failure; TabScope cannot unlock protected documents.
+
+A local offscreen worker holds at most one 12 MiB PDF download transiently, then destroys the parser. No PDF binary is written to session/local storage. Only bounded text, fingerprint, source URL, physical page offsets, printed labels and coverage remain in trusted-context session storage under schema 3. Pause/clear/exclusion/revocation cancel work and reject stale page commits. Restarted workers close orphan jobs before recovery. Clearing text also drops PDF page metadata and dismisses destination highlights/navigators. Ordinary metadata-only tab search remains available. PDF page jumps reload the existing native reader and can reset unsaved annotations; no annotation data is read or retained by TabScope.

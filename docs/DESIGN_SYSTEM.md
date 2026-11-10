@@ -39,3 +39,15 @@ Measured text contrasts: light secondary on surface 5.46:1, selection 4.83:1, fo
 ## Evidence
 
 The feature smoke script uses real extension responses and a localhost-only fixture installation grant. It exercises chip removal, clear-query behavior, forward/reverse focus traversal, Escape hierarchy, grouped settings, theme persistence and search/navigation. Captures wait for animations to finish. See [light search](screenshots/palette-search-light.png), [dark search](screenshots/palette-search-dark.png), [narrow filters](screenshots/palette-filters-narrow.png) and [Settings](screenshots/palette-settings-dark.png). Images contain controlled fixtures, not personal browsing data.
+
+## Passage controls and query quality (2026-11-09)
+
+One result row per tab remains. Only the selected tab reveals shared Previous / Passage N of M / Next controls beneath the list; these are siblings outside listbox options. The count names passages rather than word occurrences; `+` discloses caps. Pointer preview preserves input focus and list scroll; native Tab reaches controls for keyboard activation. Endpoints disable; no wrap or new OS/browser shortcuts. Query changes reset previews; polling preserves valid source IDs. Empty input offers a quiet Recent tabs disclosure, also reachable with Down Arrow.
+
+Approximate-only tabs appear beneath an explicit Approximate matches separator. The selected passage names Similar wording or Close match and the actual source wording; PDF excerpts say Opens page N, with differing printed labels separate. All source text uses text nodes. Unbroken snippets wrap, controls wrap at narrow widths, and native focus rings/tokens remain. Interaction follows the existing restrained Snap press recipe and reduced-motion variant, with immediate passage swaps and no animated ranking. The destination's compact HTML navigator is dismissible with Escape and has underlined CSS highlights; it does not replace links or page markup.
+
+At short viewport heights (including actual 200%/400% Chrome zoom), content scrolls as a whole below the input. Rows and passage controls no longer compete for a fixed internal list height. This intentionally lets footer controls scroll while keeping results reachable.
+
+Destination Previous/Next buttons expose ← / → keyboard hints and aria-keyshortcuts. Bare arrows act only while that navigator is open and focus is outside editable fields/keyboard widgets. They immediately re-highlight the new passage; disabled boundaries do not wrap.
+
+Destination navigation now flattens validated, deduplicated source ranges from the returned passages into document-order individual matches (at most 2,048). The initial match belongs to the selected palette passage. The destination labels these as Match N of M; palette previews continue to count passages. Highlighting has no expiry timer. An outside page pointer/click clears both the highlight and navigator without consuming the underlying click; navigator clicks preserve the active session. Bare Left/Right keys then return to native page behavior until another result is opened.

@@ -1,0 +1,56 @@
+{
+  "environment": {
+    "node": "v24.21.0",
+    "platform": "darwin",
+    "cpu": "Apple M4",
+    "memoryGB": 16
+  },
+  "note": "Measured before implementation in this session; 250 warm queries, query cache absent in baseline.",
+  "measurements": [
+    {
+      "tabs": 5,
+      "chars": 99773,
+      "coldP50": 4.34,
+      "coldP95": 8.4,
+      "warmP50": 0.26,
+      "warmP95": 0.39,
+      "heapMB": 13
+    },
+    {
+      "tabs": 20,
+      "chars": 399069,
+      "coldP50": 17.19,
+      "coldP95": 18.85,
+      "warmP50": 1.02,
+      "warmP95": 1.18,
+      "heapMB": 61
+    },
+    {
+      "tabs": 50,
+      "chars": 997684,
+      "coldP50": 42.24,
+      "coldP95": 46.81,
+      "warmP50": 2.55,
+      "warmP95": 2.8,
+      "heapMB": 133
+    },
+    {
+      "tabs": 100,
+      "chars": 1995345,
+      "coldP50": 81.8,
+      "coldP95": 88.01,
+      "warmP50": 5.12,
+      "warmP95": 5.51,
+      "heapMB": 128
+    },
+    {
+      "tabs": 150,
+      "chars": 2993006,
+      "coldP50": 124.09,
+      "coldP95": 137.17,
+      "warmP50": 7.74,
+      "warmP95": 8.42,
+      "heapMB": 65
+    }
+  ]
+}
