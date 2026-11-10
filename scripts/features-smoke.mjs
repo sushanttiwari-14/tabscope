@@ -254,13 +254,22 @@ try {
     ).activated,
     true,
   );
-  await a.waitForFunction(() => CSS.highlights.has("tabscope-match"));
+  await a.waitForFunction(() => CSS.highlights.has("tabscope-active-match"));
   assert.ok(
     (
       await a.evaluate(() =>
-        [...CSS.highlights.get("tabscope-match")][0].toString(),
+        [...CSS.highlights.get("tabscope-active-match")]
+          .map((r) => r.toString())
+          .join(" "),
       )
-    ).includes("event horizon"),
+    ).includes("event"),
+  );
+  await a.keyboard.press("ArrowRight");
+  assert.equal(
+    await a.evaluate(() =>
+      [...CSS.highlights.get("tabscope-active-match")][0].toString(),
+    ),
+    "horizon",
   );
   // Changed passage: activation still succeeds and feedback lives at destination.
   await a.locator("article").evaluate((e) => {

@@ -138,7 +138,7 @@ try {
   });
   assert.equal(nav.activated, true);
   assert.equal(nav.warning, undefined);
-  assert.ok(await page.evaluate(() => CSS.highlights.has("tabscope-match")));
+  assert.ok(await page.evaluate(() => CSS.highlights.has("tabscope-active-match")));
   assert.ok(await page.evaluate(() => scrollY > 500));
   await page.locator("#prior").focus();
   const tabTargets = await cdp.send("Target.getTargets", {
@@ -238,7 +238,7 @@ try {
     otherWindow.id,
   );
   assert.equal(
-    await second.evaluate(() => CSS.highlights.has("tabscope-match")),
+    await second.evaluate(() => CSS.highlights.has("tabscope-active-match")),
     true,
   );
   // Discarded tabs lose body coverage; querying does not wake them.
