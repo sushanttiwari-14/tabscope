@@ -1214,6 +1214,14 @@ window.addEventListener("pagehide", () => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender) => {
+  if (
+    sender.id === chrome.runtime.id &&
+    message?.type === "toggle-search" &&
+    !overlay
+  ) {
+    void close();
+    return;
+  }
   if (sender.id !== chrome.runtime.id || message?.type !== "index-invalidated")
     return;
   ++sequence;

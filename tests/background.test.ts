@@ -745,3 +745,30 @@ it("recovers interrupted PDF coverage after worker initialization and rejects ol
   );
   expect(old).toBe(false);
 });
+
+it("routes each keyboard invocation through toggle and accepts dismissal without a readiness timeout", async () => {
+  const commands = chromeMock.commands as {
+    onCommand: ReturnType<typeof event>;
+  };
+  const messages = (
+    chromeMock.tabs as { sendMessage: ReturnType<typeof vi.fn> }
+  ).sendMessage;
+  messages.mockImplementation(async (_id, message) =>
+    message.type === "toggle" ? { closed: true } : true,
+  );
+  commands.onCommand.listeners[0]("open-search");
+  await vi.waitFor(() =>
+    expect(messages.mock.calls.some((call) => call[1].type === "toggle")).toBe(
+      true,
+    ),
+  );
+  commands.onCommand.listeners[0]("open-search");
+  await vi.waitFor(() =>
+    expect(
+      messages.mock.calls.filter((call) => call[1].type === "toggle"),
+    ).toHaveLength(2),
+  );
+  expect(
+    (chromeMock.windows as { create: ReturnType<typeof vi.fn> }).create,
+  ).not.toHaveBeenCalled();
+});

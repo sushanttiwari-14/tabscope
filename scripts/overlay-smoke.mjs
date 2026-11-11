@@ -117,9 +117,9 @@ try {
   await frame.getByRole("button", { name: "Filters", exact: true }).focus();
   await page.evaluate(() => document.querySelector("#chat-editor").focus());
   assert.equal(
-    await frame.getByRole("button", { name: "Filters", exact: true }).evaluate(
-      (button) => document.activeElement === button,
-    ),
+    await frame
+      .getByRole("button", { name: "Filters", exact: true })
+      .evaluate((button) => document.activeElement === button),
     true,
   );
   await frame.getByRole("combobox").focus();
@@ -255,6 +255,37 @@ try {
   await page.locator("#tabscope-root").waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => document.activeElement.id), "prior");
   assert.equal(await page.evaluate(() => window.__outsideClicks), 0);
+  // Headless Chrome does not dispatch registered browser shortcuts. Exercise
+  // the same content-agent messages used by the separately tested command handler.
+  const worker = context
+    .serviceWorkers()
+    .find((worker) => worker.url().startsWith(`chrome-extension://${id}/`));
+  const toggle = () =>
+    worker.evaluate(async (url) => {
+      const [tab] = await chrome.tabs.query({ url });
+      return chrome.tabs.sendMessage(tab.id, {
+        type: "toggle",
+        invocation: crypto.randomUUID(),
+        windowId: tab.windowId,
+      });
+    }, page.url());
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await toggle();
+  await frame.getByRole("combobox").waitFor();
+  await frame.getByRole("combobox").fill("toggle-check");
+  assert.equal((await toggle()).closed, true);
+  // Reverse an exit before its 120ms fade finishes, retaining the same input.
+  await toggle();
+  await frame.getByRole("combobox").waitFor();
+  assert.equal(await frame.getByRole("combobox").inputValue(), "toggle-check");
+  assert.equal((await toggle()).closed, true);
+  await page.locator("#tabscope-root").waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => document.body.inert), false);
+  assert.equal(await page.evaluate(() => document.activeElement.id), "prior");
+  await toggle();
+  await frame.getByRole("combobox").waitFor();
+  assert.equal((await toggle()).closed, true);
+  await page.locator("#tabscope-root").waitFor({ state: "detached" });
   // Escape remains supported after reopening.
   await cdp.send("Extensions.triggerAction", { id, targetId: target });
   await frame.getByRole("combobox").waitFor();
@@ -407,6 +438,8 @@ try {
         dimming: 0.35,
         noNavigationOrNewTab: true,
         reinvocationReusesPalette: true,
+        shortcutTogglesPalette: true,
+        interruptedDismissalPreservesInput: true,
         escapeRestoresPage: true,
         outsideClickDismissesSearchAndSettings: true,
         insideClickAndDragDoNotDismiss: true,
@@ -419,7 +452,7 @@ try {
     ),
   );
   console.log(
-    "PASS: transparent light/dark iframe, visible dimmed/blurred page, host CSP, no new tab/navigation, reinvocation, outside-click dismissal/focus, no click-through, inside/drag safety and Escape",
+    "PASS: transparent light/dark iframe, visible dimmed/blurred page, host CSP, no new tab/navigation, reinvocation, shortcut toggle/reversal, outside-click dismissal/focus, no click-through, inside/drag safety and Escape",
   );
 } finally {
   await context.close();

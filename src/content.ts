@@ -48,12 +48,32 @@ if (own.__tabscopeAgent?.version !== version) {
     if (blockedBody) blockedBody.inert = false;
     blockedBody = null;
   };
-  const close = () => {
-    usable = false;
-    host?.remove();
-    host = null;
-    releasePage();
-    if (prior instanceof HTMLElement && prior.isConnected) prior.focus();
+  let closing: Animation | undefined;
+  const close = (animate = true) => {
+    if (closing && animate) return;
+    const finish = () => {
+      usable = false;
+      host?.remove();
+      host = null;
+      closing = undefined;
+      releasePage();
+      if (prior instanceof HTMLElement && prior.isConnected) prior.focus();
+    };
+    if (animate && host?.animate) {
+      const current = getComputedStyle(host).opacity;
+      host.getAnimations().forEach((animation) => animation.cancel());
+      closing = host.animate([{ opacity: current }, { opacity: 0 }], {
+        duration: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 80
+          : 120,
+        easing: "ease-out",
+        fill: "forwards",
+      });
+      void closing.finished.then(finish, () => {});
+    } else {
+      closing?.cancel();
+      finish();
+    }
   };
   document.addEventListener(
     "focusin",
@@ -67,6 +87,15 @@ if (own.__tabscopeAgent?.version !== version) {
   );
   const open = (invocation: string, windowId: number) => {
     if (host?.isConnected) {
+      if (closing) {
+        const current = getComputedStyle(host).opacity;
+        closing.cancel();
+        closing = undefined;
+        host.animate([{ opacity: current }, { opacity: 1 }], {
+          duration: 140,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        });
+      }
       focusOverlay();
       return;
     }
@@ -94,6 +123,13 @@ if (own.__tabscopeAgent?.version !== version) {
       host.dataset.tabscopeBlockedBody = "true";
     }
     document.documentElement.append(host);
+    if (host.animate)
+      host.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 100
+          : 160,
+        easing: "ease-out",
+      });
     focusOverlay();
   };
   let restoreActive: (() => boolean) | undefined;
@@ -341,11 +377,16 @@ if (own.__tabscopeAgent?.version !== version) {
       reply(true);
     }
     if (
-      m?.type === "open" &&
+      (m?.type === "open" || m?.type === "toggle") &&
       typeof m.invocation === "string" &&
       m.invocation.length <= 80 &&
       Number.isInteger(m.windowId)
     ) {
+      if (m.type === "toggle" && host?.isConnected && !closing) {
+        close();
+        reply({ closed: true });
+        return;
+      }
       cleanupHighlight();
       open(m.invocation, m.windowId);
       reply({
@@ -370,7 +411,7 @@ if (own.__tabscopeAgent?.version !== version) {
       m.expectedURL === location.href &&
       Number.isInteger(m.start)
     ) {
-      close();
+      close(false);
       const passages: Passage[] = Array.isArray(m.passages)
         ? m.passages
             .slice(0, 32)
@@ -575,6 +616,8 @@ if (own.__tabscopeAgent?.version !== version) {
       clearTimeout(timer);
       observer.disconnect();
       cleanupHighlight();
+      closing?.cancel();
+      closing = undefined;
       host?.remove();
       host = null;
       releasePage();
@@ -596,7 +639,7 @@ if (own.__tabscopeAgent?.version !== version) {
       observer.disconnect();
       clearTimeout(timer);
       cleanupHighlight();
-      close();
+      close(false);
       chrome.runtime.onMessage.removeListener(onMessage);
     },
   };

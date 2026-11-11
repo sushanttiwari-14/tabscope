@@ -548,7 +548,7 @@ async function bounded<T>(work: Promise<T>, ms = 1800): Promise<T> {
     clearTimeout(timer);
   }
 }
-async function invoke(tab?: chrome.tabs.Tab) {
+async function invoke(tab?: chrome.tabs.Tab, toggle = false) {
   const serial = ++invocation;
   const token = crypto.randomUUID();
   let target: chrome.tabs.Tab | undefined;
@@ -565,6 +565,10 @@ async function invoke(tab?: chrome.tabs.Tab) {
       ).catch(() => {});
       overlayTab = undefined;
       if (serial !== invocation) return;
+    }
+    if (toggle && target?.windowId === popup && target.id) {
+      await chrome.tabs.sendMessage(target.id, { type: "toggle-search" });
+      return;
     }
     if (!target?.id || !safeURL(target.url) || target.discarded) throw Error();
     const id = target.id;
@@ -583,14 +587,23 @@ async function invoke(tab?: chrome.tabs.Tab) {
         resolve,
       });
     });
-    // The content agent returns the frame's persistent invocation on refocus.
+    // The content agent owns visibility, including an interrupted dismissal.
     const response = await bounded(
       chrome.tabs.sendMessage(
         id,
-        { type: "open", invocation: token, windowId: target.windowId },
+        {
+          type: toggle ? "toggle" : "open",
+          invocation: token,
+          windowId: target.windowId,
+        },
         documentId ? { documentId } : undefined,
       ),
     );
+    if (response?.closed === true) {
+      overlayWaits.delete(token);
+      overlayTab = undefined;
+      return;
+    }
     const wait = overlayWaits.get(token);
     if (wait && typeof response?.pendingInvocation === "string")
       wait.uiInvocation = response.pendingInvocation;
@@ -630,7 +643,7 @@ chrome.action.onClicked.addListener((t) => {
   void invoke(t);
 });
 chrome.commands.onCommand.addListener((command) => {
-  if (command === "open-search") void invoke();
+  if (command === "open-search") void invoke(undefined, true);
 });
 chrome.tabs.onReplaced.addListener((added, removed) => {
   bump(removed);

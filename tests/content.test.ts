@@ -442,3 +442,84 @@ it("replaces a previous agent build and ignores the legacy highlight protocol", 
     }),
   ).toBeUndefined();
 });
+
+it("toggles the overlay and restores focus without requiring Control to be released", () => {
+  document.body.innerHTML = '<textarea id="composer"></textarea>';
+  const composer = document.querySelector("textarea")!;
+  composer.focus();
+  send({ type: "toggle", invocation: "first", windowId: 1 });
+  expect(document.getElementById("tabscope-root")).not.toBeNull();
+  send({ type: "ui-ready", invocation: "first" });
+  expect(send({ type: "toggle", invocation: "second", windowId: 1 })).toEqual({
+    closed: true,
+  });
+  expect(document.getElementById("tabscope-root")).toBeNull();
+  expect(document.body.inert).toBe(false);
+  expect(document.activeElement).toBe(composer);
+  send({ type: "toggle", invocation: "third", windowId: 1 });
+  expect(document.querySelectorAll("#tabscope-root")).toHaveLength(1);
+});
+
+it("reverses an in-flight dismissal without removing the reopened frame", async () => {
+  const animations: {
+    cancel: ReturnType<typeof vi.fn>;
+    finished: Promise<void>;
+    finish: () => void;
+  }[] = [];
+  vi.stubGlobal("matchMedia", () => ({ matches: false }));
+  Object.defineProperty(HTMLElement.prototype, "animate", {
+    configurable: true,
+    writable: true,
+    value: () => {},
+  });
+  Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+    configurable: true,
+    writable: true,
+    value: () => [],
+  });
+  const animate = vi
+    .spyOn(HTMLElement.prototype, "animate")
+    .mockImplementation(() => {
+      let finish!: () => void;
+      let reject!: (reason: Error) => void;
+      const finished = new Promise<void>((resolve, fail) => {
+        finish = () => resolve();
+        reject = fail;
+      });
+      // Browsers reject finished when an animation is cancelled.
+      void finished.catch(() => {});
+      const animation = {
+        finished,
+        finish,
+        cancel: vi.fn(() => reject(Error("cancelled"))),
+      };
+      animations.push(animation);
+      return animation as unknown as Animation;
+    });
+  const getAnimations = vi
+    .spyOn(HTMLElement.prototype, "getAnimations")
+    .mockImplementation(() => []);
+  send({ type: "toggle", invocation: "first", windowId: 1 });
+  send({ type: "ui-ready", invocation: "first" });
+  const host = document.getElementById("tabscope-root");
+  send({ type: "toggle", invocation: "second", windowId: 1 });
+  expect(host?.isConnected).toBe(true);
+  const dismissal = animations.at(-1)!;
+  expect(send({ type: "toggle", invocation: "third", windowId: 1 })).toEqual({
+    ready: true,
+    pendingInvocation: "first",
+  });
+  await Promise.resolve();
+  expect(dismissal.cancel).toHaveBeenCalledOnce();
+  expect(document.getElementById("tabscope-root")).toBe(host);
+  expect(document.body.inert).toBe(true);
+  send({ type: "toggle", invocation: "fourth", windowId: 1 });
+  animations.at(-1)!.finish();
+  await Promise.resolve();
+  expect(host?.isConnected).toBe(false);
+  expect(document.body.inert).toBe(false);
+  animate.mockRestore();
+  getAnimations.mockRestore();
+  Reflect.deleteProperty(HTMLElement.prototype, "animate");
+  Reflect.deleteProperty(HTMLElement.prototype, "getAnimations");
+});
