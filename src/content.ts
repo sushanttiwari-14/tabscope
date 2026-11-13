@@ -23,6 +23,12 @@ if (own.__tabscopeAgent?.version !== version) {
   const orphan = document.getElementById("tabscope-root");
   if (orphan?.dataset.tabscopeBlockedBody === "true" && document.body)
     document.body.inert = false;
+  for (const element of document.querySelectorAll<HTMLElement>(
+    '[data-tabscope-blocked="true"]',
+  )) {
+    element.inert = false;
+    delete element.dataset.tabscopeBlocked;
+  }
   orphan?.remove();
   own.__tabscope = true;
   const lifetime = new AbortController();
@@ -34,7 +40,20 @@ if (own.__tabscopeAgent?.version !== version) {
     last = 0;
   let activeInvocation = "";
   let usable = false;
-  let blockedBody: HTMLElement | null = null;
+  const blockedElements = new Set<HTMLElement>();
+  const blockPage = () => {
+    for (const element of document.body?.children ?? []) {
+      if (
+        element instanceof HTMLElement &&
+        !element.inert &&
+        !element.hasAttribute("inert")
+      ) {
+        blockedElements.add(element);
+        element.dataset.tabscopeBlocked = "true";
+        element.inert = true;
+      }
+    }
+  };
   const focusOverlay = () => {
     const frame = host?.shadowRoot?.querySelector("iframe");
     frame?.focus();
@@ -46,8 +65,11 @@ if (own.__tabscopeAgent?.version !== version) {
     );
   };
   const releasePage = () => {
-    if (blockedBody) blockedBody.inert = false;
-    blockedBody = null;
+    for (const element of blockedElements) {
+      element.inert = false;
+      delete element.dataset.tabscopeBlocked;
+    }
+    blockedElements.clear();
   };
   let closing: Animation | undefined;
   const close = (animate = true) => {
@@ -116,13 +138,9 @@ if (own.__tabscopeAgent?.version !== version) {
       "display:block;width:100%;height:100%;border:0;outline:none;background:transparent;color-scheme:normal";
     frame.addEventListener("load", focusOverlay, { signal });
     shadow.append(frame);
-    // The overlay is a sibling of body, so only the underlying page becomes
-    // inert. Preserve a body that was already inert before opening.
-    if (document.body && !document.body.inert) {
-      blockedBody = document.body;
-      blockedBody.inert = true;
-      host.dataset.tabscopeBlockedBody = "true";
-    }
+    // Avoid body[inert]: sites can treat it as their own modal state and hide
+    // the entire application. Block existing page regions individually instead.
+    blockPage();
     document.documentElement.append(host);
     if (host.animate)
       host.animate([{ opacity: 0 }, { opacity: 1 }], {
@@ -556,6 +574,7 @@ if (own.__tabscopeAgent?.version !== version) {
   };
   chrome.runtime.onMessage.addListener(onMessage);
   const observer = new MutationObserver((mutations) => {
+    if (host?.isConnected) blockPage();
     if (
       mutations.every((m) => {
         if (

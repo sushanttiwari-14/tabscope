@@ -69,7 +69,7 @@ it("hands focus back to the overlay after loading and restores the page on close
     .getElementById("tabscope-root")!
     .shadowRoot!.querySelector("iframe")!;
   const focus = vi.spyOn(frame, "focus");
-  expect(document.body.inert).toBe(true);
+  expect(composer.inert).toBe(true);
   frame.dispatchEvent(new Event("load"));
   expect(focus).toHaveBeenCalledOnce();
   send({ type: "ui-ready", invocation: "focus-test" });
@@ -77,7 +77,7 @@ it("hands focus back to the overlay after loading and restores the page on close
   composer.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
   expect(focus).toHaveBeenCalledTimes(3);
   send({ type: "close", invocation: "focus-test" });
-  expect(document.body.inert).toBe(false);
+  expect(Boolean(document.body.inert)).toBe(false);
   expect(document.activeElement).toBe(composer);
 });
 it("preserves a page that was already inert when the overlay opened", () => {
@@ -101,11 +101,11 @@ it("cleans up an orphaned overlay and its inert page after extension reload", as
   vi.resetModules();
   await import("../src/content");
   expect(orphan.isConnected).toBe(false);
-  expect(document.body.inert).toBe(false);
+  expect(Boolean(document.body.inert)).toBe(false);
   send({ type: "open", invocation: "after-reload", windowId: 1 });
   expect(document.querySelectorAll("#tabscope-root")).toHaveLength(1);
   send({ type: "close", invocation: "after-reload" });
-  expect(document.body.inert).toBe(false);
+  expect(Boolean(document.body.inert)).toBe(false);
 });
 it("targets repeated passages by original source position and folds Unicode without corrupting ranges", () => {
   const text = "The café horizon is near.";
@@ -454,7 +454,7 @@ it("toggles the overlay and restores focus without requiring Control to be relea
     closed: true,
   });
   expect(document.getElementById("tabscope-root")).toBeNull();
-  expect(document.body.inert).toBe(false);
+  expect(Boolean(document.body.inert)).toBe(false);
   expect(document.activeElement).toBe(composer);
   send({ type: "toggle", invocation: "third", windowId: 1 });
   expect(document.querySelectorAll("#tabscope-root")).toHaveLength(1);
@@ -512,12 +512,12 @@ it("reverses an in-flight dismissal without removing the reopened frame", async 
   await Promise.resolve();
   expect(dismissal.cancel).toHaveBeenCalledOnce();
   expect(document.getElementById("tabscope-root")).toBe(host);
-  expect(document.body.inert).toBe(true);
+  expect(Boolean(document.body.inert)).toBe(false);
   send({ type: "toggle", invocation: "fourth", windowId: 1 });
   animations.at(-1)!.finish();
   await Promise.resolve();
   expect(host?.isConnected).toBe(false);
-  expect(document.body.inert).toBe(false);
+  expect(Boolean(document.body.inert)).toBe(false);
   animate.mockRestore();
   getAnimations.mockRestore();
   Reflect.deleteProperty(HTMLElement.prototype, "animate");
@@ -533,4 +533,20 @@ it("requests reanalysis when the document language hint changes", async () => {
     url: location.href,
   });
   document.documentElement.lang = "";
+});
+
+it("blocks page regions without toggling the body's site-owned modal state", () => {
+  Object.defineProperty(HTMLElement.prototype, "animate", {
+    configurable: true,
+    writable: true,
+    value: undefined,
+  });
+  document.body.innerHTML =
+    '<main id="page">Search results</main><aside inert>Already blocked</aside>';
+  send({ type: "open", invocation: "body-state", windowId: 1 });
+  expect(Boolean(document.body.inert)).toBe(false);
+  expect((document.querySelector("main") as HTMLElement).inert).toBe(true);
+  send({ type: "close", invocation: "body-state" });
+  expect((document.querySelector("main") as HTMLElement).inert).toBe(false);
+  expect(document.querySelector("aside")!.hasAttribute("inert")).toBe(true);
 });

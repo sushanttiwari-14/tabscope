@@ -12,7 +12,7 @@ const server = createServer((req, res) => {
   if (req.url === "/fixture.css") {
     res.setHeader("content-type", "text/css");
     res.end(
-      `*{box-sizing:border-box}body{margin:0;background:#f0e8d9;color:#25363c;font:17px/1.7 system-ui}header{padding:32px 48px;background:#365f67;color:#fff}main{display:flex;gap:40px;max-width:1000px;margin:48px auto;padding:0 32px}aside{width:210px;flex:none;padding:24px;background:#d3e1d8;border-radius:12px}article{flex:1}h1{font-size:32px;margin:0}h2{font-size:22px}p{margin-bottom:28px}.tile{height:160px;margin:24px 0;background:#cbb89a;border-radius:12px}@media(prefers-color-scheme:dark){body{background:#263432;color:#e4ede4}header{background:#365f67}aside{background:#3b5048}.tile{background:#88775e}}`,
+      `body[inert]> *{visibility:hidden}*{box-sizing:border-box}body{margin:0;background:#f0e8d9;color:#25363c;font:17px/1.7 system-ui}header{padding:32px 48px;background:#365f67;color:#fff}main{display:flex;gap:40px;max-width:1000px;margin:48px auto;padding:0 32px}aside{width:210px;flex:none;padding:24px;background:#d3e1d8;border-radius:12px}article{flex:1}h1{font-size:32px;margin:0}h2{font-size:22px}p{margin-bottom:28px}.tile{height:160px;margin:24px 0;background:#cbb89a;border-radius:12px}@media(prefers-color-scheme:dark){body{background:#263432;color:#e4ede4}header{background:#365f67}aside{background:#3b5048}.tile{background:#88775e}}`,
     );
     return;
   }
@@ -110,7 +110,14 @@ try {
   await page.keyboard.type("focus-check");
   assert.equal(await frame.getByRole("combobox").inputValue(), "focus-check");
   assert.equal(await page.locator("#chat-editor").textContent(), "");
-  assert.equal(await page.evaluate(() => document.body.inert), true);
+  assert.equal(await page.evaluate(() => document.body.inert), false);
+  assert.equal(await page.locator("main").evaluate((e) => e.inert), true);
+  assert.equal(
+    await page
+      .locator("article")
+      .evaluate((e) => getComputedStyle(e).visibility),
+    "visible",
+  );
   await frame.getByRole("combobox").fill("");
   // A delayed page focus request must also leave an intentional filter focus
   // intact, rather than continually forcing the search field.
