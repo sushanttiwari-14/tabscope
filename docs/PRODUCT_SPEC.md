@@ -6,7 +6,7 @@ Chrome desktop, current profile, normal windows: command/icon → immediate inpu
 
 ## Interaction
 
-Suggested shortcut Control+Space on Mac (manifest MacCtrl+Space), Ctrl+Shift+Space on Windows/default; assignment may conflict and is not guaranteed. Change at chrome://extensions/shortcuts. Reinvoke refocuses, never duplicates. Arrow keys select, Enter jumps, Escape closes/restores focus. IME and normal editing remain native. Newest request alone may render. Settings remains within palette, with immediate Appearance saving, visible current-shortcut setup, and separate disclosures for access, exclusions and local data. Restricted pages use an extension-owned popup window.
+Suggested shortcut Control+Space on Mac (manifest MacCtrl+Space), Ctrl+Space on Windows/default; assignment may conflict and is not guaranteed. Change at chrome://extensions/shortcuts. Reinvoke refocuses, never duplicates. Arrow keys select, Enter jumps, Escape closes/restores focus. IME and normal editing remain native. Newest request alone may render. Settings remains within palette, with immediate Appearance saving, visible current-shortcut setup, and separate disclosures for access, exclusions and local data. Restricted pages use an extension-owned popup window.
 
 ## Support
 

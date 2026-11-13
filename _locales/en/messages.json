@@ -308,7 +308,7 @@
     "description": "TabScope palette interface. Translate the whole message; retain placeholders."
   },
   "suggested_control_space_on_mac_ctrl_shift_space_on": {
-    "message": "Suggested: Control+Space on Mac; Ctrl+Shift+Space on Windows. Set Search open tabs for this copy of TabScope. macOS can reserve Control+Space for input sources; choose another combination if needed.",
+    "message": "Suggested: Control+Space on Mac; Ctrl+Space on Windows. Set Search open tabs for this copy of TabScope. macOS can reserve Control+Space for input sources; choose another combination if needed.",
     "description": "TabScope palette interface. Translate the whole message; retain placeholders."
   },
   "website_access": {

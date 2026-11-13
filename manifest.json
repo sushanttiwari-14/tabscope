@@ -17,7 +17,7 @@
   "commands": {
     "open-search": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Space",
+        "default": "Ctrl+Space",
         "mac": "MacCtrl+Space"
       },
       "description": "__MSG_extension_command__"

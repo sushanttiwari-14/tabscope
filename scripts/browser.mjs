@@ -166,7 +166,7 @@ try {
   await page.locator("#tabscope-root").waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => document.activeElement?.id), "prior");
   await page.keyboard.press(
-    process.platform === "darwin" ? "Control+Space" : "Control+Shift+Space",
+    process.platform === "darwin" ? "Control+Space" : "Control+Space",
   );
   let commandVerified = false;
   try {
