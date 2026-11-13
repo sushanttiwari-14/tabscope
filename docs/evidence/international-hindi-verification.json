@@ -1,0 +1,131 @@
+{
+  "browser": "157.0.8103.78",
+  "passed": true,
+  "checks": [
+    {
+      "locale": "en",
+      "query": "ceramic",
+      "matched": [
+        "ceramic"
+      ]
+    },
+    {
+      "locale": "es",
+      "query": "investigación",
+      "matched": [
+        "investigación"
+      ]
+    },
+    {
+      "locale": "fr",
+      "query": "lumière",
+      "matched": [
+        "lumière"
+      ]
+    },
+    {
+      "locale": "de",
+      "query": "Straße",
+      "matched": [
+        "Straße"
+      ]
+    },
+    {
+      "locale": "pt",
+      "query": "coração",
+      "matched": [
+        "coração"
+      ]
+    },
+    {
+      "locale": "tr",
+      "query": "ışık",
+      "matched": [
+        "IŞIK"
+      ]
+    },
+    {
+      "locale": "ru",
+      "query": "исследование",
+      "matched": [
+        "исследование"
+      ]
+    },
+    {
+      "locale": "el",
+      "query": "ΚΌΣΜΟΣ",
+      "matched": [
+        "κόσμος"
+      ]
+    },
+    {
+      "locale": "ar",
+      "query": "العلم",
+      "matched": [
+        "العِلْم"
+      ]
+    },
+    {
+      "locale": "he",
+      "query": "שלום",
+      "matched": [
+        "שָׁלוֹם"
+      ]
+    },
+    {
+      "locale": "hi",
+      "query": "जानकारी",
+      "matched": [
+        "जानकारी"
+      ]
+    },
+    {
+      "locale": "zh-Hans",
+      "query": "中华人民",
+      "matched": [
+        "中华人民"
+      ]
+    },
+    {
+      "locale": "zh-Hant",
+      "query": "中華人民",
+      "matched": [
+        "中華人民"
+      ]
+    },
+    {
+      "locale": "ja",
+      "query": "京都",
+      "matched": [
+        "京都"
+      ]
+    },
+    {
+      "locale": "ko",
+      "query": "한국어",
+      "matched": [
+        "한국어"
+      ]
+    },
+    {
+      "locale": "th",
+      "query": "ภาษาไทย",
+      "matched": [
+        "ภาษาไทย"
+      ]
+    }
+  ],
+  "pdf": "Synthetic ToUnicode extraction: Latin, Chinese/Japanese, Hindi, Arabic, Hebrew; glyph typography unverified",
+  "splitNodeHighlight": true,
+  "hindiInputPreviewAndDestination": true,
+  "hindiSignificantVowelsAndNoTranslation": true,
+  "overlappingPhraseHighlights": true,
+  "dynamicLanguageHint": true,
+  "ime": "Synthetic composition events only; native IME unverified",
+  "rtlNarrow": true,
+  "pseudoLocalization": true,
+  "segmenter": {
+    "locale": "en",
+    "granularity": "word"
+  }
+}

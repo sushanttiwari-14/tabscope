@@ -1,0 +1,223 @@
+{
+  "baselineCommit": "c4d6f6b616b8003233239712ffdab5260b39e66c",
+  "platform": "darwin",
+  "memoryGB": 16,
+  "hardware": "Apple M4",
+  "results": [
+    {
+      "implementation": "before",
+      "scenario": "english",
+      "node": "v24.21.0",
+      "icu": "78.3",
+      "tabs": 100,
+      "textUnits": 1998800,
+      "coldP50": 66.4,
+      "coldMax": 76.9,
+      "queries": {
+        "ceramic orbital": {
+          "p50": 21.54,
+          "p95": 32.4,
+          "hits": 100
+        },
+        "\"orbital ceramic\"": {
+          "p50": 10.75,
+          "p95": 15.76,
+          "hits": 100
+        },
+        "configurtaion": {
+          "p50": 13.95,
+          "p95": 16.68,
+          "hits": 100
+        }
+      },
+      "retainedHeapDeltaMB": 19.08,
+      "retainedArrayBufferDeltaMB": 0,
+      "retainedTotalMB": 19.08
+    },
+    {
+      "implementation": "before",
+      "scenario": "mixed",
+      "node": "v24.21.0",
+      "icu": "78.3",
+      "tabs": 100,
+      "textUnits": 2000000,
+      "coldP50": 217.28,
+      "coldMax": 230.75,
+      "queries": {
+        "lumière": {
+          "p50": 20.34,
+          "p95": 29.66,
+          "hits": 100
+        },
+        "\"科学\"": {
+          "p50": 0.01,
+          "p95": 0.12,
+          "hits": 0
+        },
+        "ภาษาไทย": {
+          "p50": 0.01,
+          "p95": 0.02,
+          "hits": 0
+        },
+        "العلم": {
+          "p50": 18.8,
+          "p95": 23.83,
+          "hits": 100
+        },
+        "जानकारी": {
+          "p50": 16.92,
+          "p95": 19.13,
+          "hits": 100
+        }
+      },
+      "retainedHeapDeltaMB": 23.36,
+      "retainedArrayBufferDeltaMB": 0,
+      "retainedTotalMB": 23.37
+    },
+    {
+      "implementation": "before",
+      "scenario": "long-no-space",
+      "node": "v24.21.0",
+      "icu": "78.3",
+      "tabs": 33,
+      "textUnits": 1980000,
+      "coldP50": 138.12,
+      "coldMax": 144.12,
+      "queries": {
+        "ภาษาไทย": {
+          "p50": 0.02,
+          "p95": 0.7,
+          "hits": 0
+        },
+        "\"วิทยาศาสตร์\"": {
+          "p50": 0.01,
+          "p95": 0.01,
+          "hits": 0
+        },
+        "ภาษาไม่มี": {
+          "p50": 0.01,
+          "p95": 0.05,
+          "hits": 0
+        }
+      },
+      "retainedHeapDeltaMB": 3.56,
+      "retainedArrayBufferDeltaMB": 0,
+      "retainedTotalMB": 3.57
+    },
+    {
+      "implementation": "after",
+      "scenario": "english",
+      "node": "v24.21.0",
+      "icu": "78.3",
+      "tabs": 100,
+      "textUnits": 1998800,
+      "coldP50": 270.15,
+      "coldMax": 284.07,
+      "queries": {
+        "ceramic orbital": {
+          "p50": 26.09,
+          "p95": 36.12,
+          "hits": 100
+        },
+        "\"orbital ceramic\"": {
+          "p50": 17.28,
+          "p95": 40.28,
+          "hits": 100
+        },
+        "configurtaion": {
+          "p50": 15.64,
+          "p95": 16.3,
+          "hits": 100
+        }
+      },
+      "retainedHeapDeltaMB": 25.24,
+      "retainedArrayBufferDeltaMB": 0,
+      "retainedTotalMB": 25.25
+    },
+    {
+      "implementation": "after",
+      "scenario": "mixed",
+      "node": "v24.21.0",
+      "icu": "78.3",
+      "tabs": 100,
+      "textUnits": 2000000,
+      "coldP50": 1131.07,
+      "coldMax": 1175.38,
+      "queries": {
+        "lumière": {
+          "p50": 36.43,
+          "p95": 46.36,
+          "hits": 100
+        },
+        "\"科学\"": {
+          "p50": 27.76,
+          "p95": 32.19,
+          "hits": 100
+        },
+        "ภาษาไทย": {
+          "p50": 24.97,
+          "p95": 25.68,
+          "hits": 100
+        },
+        "العلم": {
+          "p50": 31.46,
+          "p95": 34.21,
+          "hits": 100
+        },
+        "जानकारी": {
+          "p50": 31.29,
+          "p95": 31.42,
+          "hits": 100
+        }
+      },
+      "retainedHeapDeltaMB": 66.06,
+      "retainedArrayBufferDeltaMB": 14.49,
+      "retainedTotalMB": 80.56
+    },
+    {
+      "implementation": "after",
+      "scenario": "long-no-space",
+      "node": "v24.21.0",
+      "icu": "78.3",
+      "tabs": 33,
+      "textUnits": 1980000,
+      "coldP50": 1056.12,
+      "coldMax": 1100.35,
+      "queries": {
+        "ภาษาไทย": {
+          "p50": 42.4,
+          "p95": 72.16,
+          "hits": 33
+        },
+        "\"วิทยาศาสตร์\"": {
+          "p50": 47.12,
+          "p95": 52.07,
+          "hits": 33
+        },
+        "ภาษาไม่มี": {
+          "p50": 2.74,
+          "p95": 2.83,
+          "hits": 0
+        }
+      },
+      "retainedHeapDeltaMB": 75.21,
+      "retainedArrayBufferDeltaMB": 12.75,
+      "retainedTotalMB": 87.96
+    }
+  ],
+  "bundles": {
+    "before": {
+      "content.js": 16448,
+      "palette.js": 25220,
+      "background.js": 47052,
+      "pdf-offscreen.js": 506266
+    },
+    "after": {
+      "content.js": 18313,
+      "palette.js": 25743,
+      "background.js": 53663,
+      "pdf-offscreen.js": 508270
+    }
+  },
+  "method": "3 cold rebuilds; 12 uncached requests/query; fresh Node process/scenario, explicit GC before and after; retained JS heap plus ArrayBuffer delta includes MiniSearch, token maps, projections, metadata. Observational, not Chrome peak RSS."
+}

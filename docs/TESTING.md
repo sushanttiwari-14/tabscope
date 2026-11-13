@@ -234,3 +234,55 @@ Supersedes the timed-highlight follow-ups above. The highlight no longer expires
 Reviewed the supplied 14.6-second recording of the Wikipedia `ergo` search. It shows the destination without a retained highlight/navigator. Fixed the legacy singleton guard that could skip a newer injected implementation, added versioned disposal and a separate destination protocol/highlight namespace, and cached source/DOM mappings to avoid extraction on every arrow. Equivalent DOM text-node replacement re-locates the active match rather than permanently clearing it.
 
 Strict check passes 84 tests; production build, feature and passage/PDF Chrome smoke pass. New regressions verify agent replacement/removal of old listeners, ignored legacy highlight messages, one DOM scan across repeated arrow presses, restoration after equivalent node replacement, and a stale boolean controller with delayed legacy cleanup in real Chrome. Repeated the recording's `ergo` query in the already-open Black hole Wikipedia tab in the regular Chrome profile, without refreshing that tab: Ergosphere remained visibly highlighted; native Right moved Match 1 of 9 to 2 of 9 and native Left returned to 1 of 9. The session remained active well past the former timeout. The enabled extension was reloaded from the current dist. No personal-page screenshot was persisted as evidence.
+
+## International multilingual search — 2026-11-12
+
+Implementation and feature-specific claims: [support matrix and policy](MULTILINGUAL.md). All fixtures are synthetic and public-safe. No personal-profile index or browsing bodies were used.
+
+- `npm run check`: **130 tests pass** across nine files, strict TypeScript and ESLint pass.
+- `npm run build`: passes; Chrome 120 build target and manifest floor unchanged, with English-only Chrome localization.
+- `npm run test:multilingual`: passes in **real Chrome 157.0.8103.78 / macOS**. All requested language/variant targets return verified original source passages. Also exercises Unicode PDF.js CMap extraction/page references, replacement-character partial coverage, a real split-node destination CSS Highlight, overlapping phrase ink, mixed RTL/LTR content, hostile bidi controls, 360px layout, long pseudo-localized settings labels, dynamic tr → en → tr language-hint invalidation, and synthetic composition events. [Structured result](evidence/international-browser-result.json).
+- Existing real-Chrome `test:overlay`, `test:access`, `test:features`, `test:passages` pass. These retain keyboard/focus, permissions/privacy/lifecycle, source navigation, PDF physical page jumps, scanned/error coverage, and forced worker-restart evidence. [Overlay](evidence/international-overlay-result.json), [features](evidence/international-features-result.json), [passages/PDF](evidence/international-passages-result.json). Access passes with no automatic host grant; its output is console-only.
+- Node exercises canonical encodings, significant-mark negatives, exact-over-alias ranking, Turkish cases/AND deduplication, Greek sigma, Korean Jamo, context-sensitive substring/phrase evidence, punctuation/structural breaks, grapheme ranges/truncation, overlong/invalid language hints, analysis migration and Segmenter absence. PDF tests ensure clipping at a safe grapheme below the numeric limit still reports partial coverage.
+- Node **24.21.0 / ICU 78.3**, Apple M4, macOS, 16 GiB RAM. Node success is not used as proof of Chrome behavior; both runtimes execute fixtures. Chrome 120 itself was not available. The startup offscreen check now uses runtime.getContexts rather than a newer API, and actual Chrome confirms offscreen localization works through authenticated worker templates rather than an unavailable offscreen i18n API.
+
+Visually inspected synthetic evidence: [Arabic narrow](screenshots/international-arabic-narrow.png), [Hebrew narrow](screenshots/international-hebrew-narrow.png), [long pseudo-localized labels](screenshots/international-pseudo-settings.png). English controls remain LTR; user-content regions choose direction independently. Pseudo-localization is injected only into the disposable test renderer, never shipped.
+
+### Current performance comparison
+
+Same-machine comparison against original commit `c4d6f6b6`. Fresh Node process per scenario/implementation, three cold rebuilds and twelve requests per query; the eight-entry query cache is cleared for every request. Retained memory is measured after explicit GC with the query cache cleared, as **JS heap + ArrayBuffers**, including MiniSearch, token forms, source/grapheme projections and metadata; source fixture records already exist before the measurement baseline. It is retained index overhead, not total extension memory or Chrome peak RSS. No n-gram index is added.
+
+| Corpus | Cold rebuild p50 before → after (ms) | Retained index MiB before → after | Current uncached positive-query p50 / worst p95 (ms) |
+| --- | ---: | ---: | ---: |
+| 100 English tabs / 1.999M units | 66.40 → 270.15 | 19.08 → 25.25 | 15.64–26.09 / 40.28 |
+| 100 mixed-language tabs / 2M units | 217.28 → 1131.07 | 23.37 → 80.56 | 24.97–36.43 / 46.36 |
+| 33 Thai tabs / 1.98M units | 138.12 → 1056.12 | 3.57 → 87.96 | 42.40–47.12 / 72.16 |
+
+The former implementation missed the Chinese/Thai stress queries; its low miss latency and smaller no-space index are not equivalent search quality. Cold indexing and retained memory increase materially to preserve searchable words, matching forms and source maps. All measured current warm positive-query p95 values are below 100 ms on this machine; these samples do not guarantee other corpora/hardware. Mixed-script cold indexing is roughly one second. ArrayBuffer memory is counted explicitly so compact offset maps are not hidden outside heap figures.
+
+[Raw comparison and method](evidence/international-benchmark.json). Approximation is exercised in the English scenario; exact, phrase, aliases, mixed scripts and positive/negative long no-space searches are separate entries. The existing benchmark harness was also run before/after: [original](evidence/international-existing-benchmark-before.txt), [current](evidence/international-existing-benchmark-after.txt). Its heap is an observed uncollected heap, not the retained/GC metric above; its 150-document dataset intentionally exceeds the product body budget.
+
+| Minified bundle (bytes) | Before | After |
+| --- | ---: | ---: |
+| content.js | 16,448 | 18,313 |
+| palette.js | 25,220 | 25,743 |
+| background.js | 47,052 | 53,663 |
+| pdf-offscreen.js | 506,266 | 508,270 |
+
+Bundle measurements use the same Chrome 120/minification configuration and test agent-version constant for both implementations. The unchanged PDF worker is excluded. The English message catalog is a separate ~35 KiB JSON resource; translator metadata and the unit-test English fallback are absent from the shipped JavaScript bundles. No dependencies or remotely fetched dictionaries were added.
+
+### Remaining manual validation
+
+- Native-speaker review and broader real multilingual websites/PDF fonts; the Unicode CMap fixture validates extraction, not glyph shaping or visual reading order. Incorrect PDF Unicode maps can still produce plausible but wrong text that cannot be detected reliably.
+- Physical Chinese/Japanese/Korean OS IMEs; synthetic composition guards passed only. Live VoiceOver/NVDA announcements, language pronunciation and focus behavior remain unverified.
+- Decoded Unicode aliases for percent-encoded URL paths/punycode hostnames are intentionally unsupported; URL-field fixtures use literal stored representations.
+- Actual Chrome 120 hardware/ICU, Windows/Linux, real 200%/400% browser zoom and broader RTL/ellipsis/font combinations. Narrow layouts and synthetic long labels are not a substitute for these checks.
+- Chrome peak process memory, cold browser boot and a new 100-tab real-browser performance run were not instrumented. The fresh Node comparison includes the new retained maps but does not replace those measurements.
+
+No production-readiness, native linguistic-quality, translation-search, OCR, transliteration, general multilingual stemming or non-English typo-correction claim is made. The release gates above remain open.
+
+## Hindi verification follow-up — 2026-11-13
+
+Rebuilt `dist` and reran strict typecheck, lint and all 130 tests successfully. The real Chrome 157.0.8103.78 multilingual smoke suite also passes with additional Hindi checks: entering विज्ञान and जानकारी renders matching snippets, production navigation opens the correct HTML source, and the destination CSS Highlight contains the exact original Hindi word. Hindi PDF extraction/page references remain covered. The Hindi fixture does not match कि when it contains की, or match English/transliterated science/vigyan queries. These checks use direct text input in an isolated synthetic profile; physical OS IME behavior and the user's installed extension reload are not asserted.
+
+Evidence: [Hindi and multilingual browser result](evidence/international-hindi-verification.json).

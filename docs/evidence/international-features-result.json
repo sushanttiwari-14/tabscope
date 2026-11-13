@@ -1,0 +1,25 @@
+{
+  "browser": "157.0.8103.78",
+  "passed": true,
+  "fixtureHostGrantedAtInstall": true,
+  "nativePermissionPromptTested": false,
+  "features": [
+    "source passage",
+    "split-node highlight",
+    "destination notice",
+    "restricted-destination badge/title",
+    "page-text/domain filters",
+    "typo recovery",
+    "cross-window fallback filtering",
+    "excluded/paused coverage",
+    "narrow layout",
+    "filter chips and Escape dismissal",
+    "clear query collapses to search field",
+    "dialog keyboard focus containment",
+    "grouped settings and immediate theme persistence",
+    "weak body evidence suppressed for complete title matches",
+    "rapid invocation/query preservation",
+    "initializer-free shell timeout cleanup",
+    "restricted singleton fallback"
+  ]
+}

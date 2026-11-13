@@ -1,0 +1,18 @@
+
+> tabscope@0.1.0 benchmark
+> tsx scripts/benchmark.ts
+
+{
+  "node": "v24.21.0",
+  "platform": "darwin",
+  "cpu": "Apple M4",
+  "memoryGB": 16
+}
+{"tabs":5,"chars":99773,"coldRebuildRepetitions":10,"coldP50":4.02,"coldP95":8.38,"warmRepetitions":250,"queryCache":"disabled for comparable algorithm timings","warmP50":1.95,"warmP95":3.83,"heapMB":18}
+{"tabs":20,"chars":399069,"coldRebuildRepetitions":10,"coldP50":16.29,"coldP95":19.67,"warmRepetitions":250,"queryCache":"disabled for comparable algorithm timings","warmP50":8.06,"warmP95":8.96,"heapMB":54}
+{"tabs":50,"chars":997684,"coldRebuildRepetitions":10,"coldP50":40.26,"coldP95":41.26,"warmRepetitions":250,"queryCache":"disabled for comparable algorithm timings","warmP50":20.26,"warmP95":21.2,"heapMB":49}
+{"tabs":100,"chars":1995345,"coldRebuildRepetitions":10,"coldP50":82.18,"coldP95":88.23,"warmRepetitions":250,"queryCache":"disabled for comparable algorithm timings","warmP50":40.76,"warmP95":42.91,"heapMB":218}
+{"tabs":150,"chars":2993006,"coldRebuildRepetitions":10,"coldP50":122.86,"coldP95":127.6,"warmRepetitions":250,"queryCache":"disabled for comparable algorithm timings","warmP50":60.03,"warmP95":62.04,"heapMB":129}
+{"scenario":"repeated-long","tabs":100,"queryCache":"disabled","p50":47.03,"p95":61.39,"returnedPassages":3200,"serializedTextUnits":2000000}
+{"scenario":"typos","tabs":100,"queryCache":"disabled","p50":81.32,"p95":137.92,"returnedPassages":3200,"serializedTextUnits":2000000}
+{"scenario":"pdf-pages","tabs":100,"queryCache":"disabled","p50":7.98,"p95":10.41,"returnedPassages":3200,"serializedTextUnits":234800}
