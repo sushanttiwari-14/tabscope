@@ -18,7 +18,8 @@
     "test:access": "node scripts/access-smoke.mjs",
     "test:overlay": "node scripts/overlay-smoke.mjs",
     "test:features": "node scripts/features-smoke.mjs",
-    "test:passages": "node scripts/passages-smoke.mjs"
+    "test:passages": "node scripts/passages-smoke.mjs",
+    "test:multilingual": "node scripts/multilingual-smoke.mjs"
   },
   "dependencies": {
     "minisearch": "^7.2.0",
