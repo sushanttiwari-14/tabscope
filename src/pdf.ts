@@ -1,8 +1,10 @@
+import { safeEnd } from "./analysis";
+import { t } from "./i18n";
 // No viewer replacement: preserve URL query and unrelated fragment parameters.
 export function pdfPageURL(source: string, page: number) {
   const url = new URL(source);
   if (!/^https?:$/.test(url.protocol) || !Number.isInteger(page) || page < 1)
-    throw Error("Unsupported PDF destination");
+    throw Error(t("unsupported_pdf_destination"));
   const original = url.hash.slice(1);
   const params = original
     ? original.split("&").filter((part) => {
@@ -32,7 +34,7 @@ export interface PDFTextItem {
   width: number;
   hasEOL?: boolean;
 }
-export function pdfPageText(items: PDFTextItem[]) {
+export function pdfPageTextResult(items: PDFTextItem[]) {
   let text = "";
   let prior: PDFTextItem | undefined;
   let lineStart = 0;
@@ -75,5 +77,13 @@ export function pdfPageText(items: PDFTextItem[]) {
     prior = item;
     if (text.length >= PDF_LIMITS.text) break;
   }
-  return text.slice(0, PDF_LIMITS.text);
+  return {
+    text: safeEnd(text, PDF_LIMITS.text),
+    truncated: items.length > 20_000 || text.length >= PDF_LIMITS.text,
+  };
+}
+
+// Preserve the existing string API for callers that only need page text.
+export function pdfPageText(items: PDFTextItem[]) {
+  return pdfPageTextResult(items).text;
 }

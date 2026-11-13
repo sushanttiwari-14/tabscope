@@ -41,7 +41,6 @@ async function setup() {
       onInstalled: event(),
     },
     offscreen: {
-      hasDocument: async () => false,
       closeDocument: async () => {},
       Reason: { WORKERS: "WORKERS" },
       createDocument: async () => {},
@@ -771,4 +770,29 @@ it("routes each keyboard invocation through toggle and accepts dismissal without
   expect(
     (chromeMock.windows as { create: ReturnType<typeof vi.fn> }).create,
   ).not.toHaveBeenCalled();
+});
+
+it("rebuilds derived analysis from older session policy and validates locale hints", async () => {
+  const { ANALYSIS_VERSION } = await import("../src/analysis");
+  session.schema = 3;
+  session.analysisVersion = 0;
+  session.records = [
+    {
+      id: 1,
+      windowId: 2,
+      url: tabs[0].url,
+      title: "Unrelated",
+      text: "café 科学研究",
+      locale: "malformed locale!",
+      updated: 7,
+      indexedAt: Date.now(),
+      state: "content",
+      coverage: "ready",
+    },
+  ];
+  await setup();
+  expect((await send({ type: "search", query: "café" })).hits).toHaveLength(1);
+  expect((await send({ type: "search", query: "科学" })).hits).toHaveLength(1);
+  expect(session.analysisVersion).toBe(ANALYSIS_VERSION);
+  expect((session.records as { locale?: string }[])[0].locale).toBeUndefined();
 });

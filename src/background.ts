@@ -1,3 +1,6 @@
+import { pdfMessages } from "./pdf-messages";
+import { t } from "./i18n";
+import { ANALYSIS_VERSION, localeHint } from "./analysis";
 import { pdfPageURL } from "./pdf";
 import { extractReadable } from "./extract";
 import { SearchIndex, matchesFilters } from "./search";
@@ -70,12 +73,14 @@ async function startPDF(id: number, url: string, generation: number) {
         await chrome.offscreen.createDocument({
           url: "pdf-offscreen.html",
           reasons: [chrome.offscreen.Reason.WORKERS],
-          justification:
-            "Extract permitted PDFs locally with a bundled PDF.js worker",
+          justification: t(
+            "extract_permitted_pdfs_locally_with_a_bundled_pdf_js",
+          ),
         });
       if (pdfJobs.get(id) !== job) return;
       const result = await chrome.runtime.sendMessage({
         type: "pdf-extract",
+        messages: pdfMessages(),
         url,
         token,
       });
@@ -91,7 +96,7 @@ async function startPDF(id: number, url: string, generation: number) {
               textPages: r.pdf?.textPages ?? 0,
               status: String(
                 result?.error ??
-                  "PDF extraction was interrupted. Retry page text.",
+                  t("pdf_extraction_was_interrupted_retry_page_text"),
               ).slice(0, 200),
             };
             r.coverage = r.text ? "partial" : "failure";
@@ -167,6 +172,7 @@ async function persist() {
   search.sync(records);
   await chrome.storage.session.set({
     schema: 3,
+    analysisVersion: ANALYSIS_VERSION,
     recency: [...recency],
     records: [...records.values()],
   });
@@ -174,7 +180,14 @@ async function persist() {
 async function initialize() {
   if (ready) return;
   // A restarted worker cannot authenticate a former extraction job token.
-  if (chrome.offscreen && (await chrome.offscreen.hasDocument()))
+  if (
+    chrome.offscreen &&
+    (
+      await chrome.runtime.getContexts({
+        contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+      })
+    ).length
+  )
     await chrome.offscreen.closeDocument();
   await chrome.storage.session.setAccessLevel({
     accessLevel: "TRUSTED_CONTEXTS",
@@ -206,8 +219,12 @@ async function initialize() {
       if (r.pdf && r.coverage === "indexing") {
         r.coverage = "partial";
         r.indexedAt = 0;
-        r.pdf.status = `Searched ${r.pdf.searched} of ${r.pdf.total} pages · interrupted`;
+        r.pdf.status = t("searched_of_pages_interrupted", [
+          r.pdf.searched,
+          r.pdf.total,
+        ]);
       }
+      r.locale = localeHint(r.locale);
       records.set(r.id, r);
     }
   if (Array.isArray(saved.recency))
@@ -271,6 +288,7 @@ async function reconcile() {
       updated: keep ? old.updated : 0,
       indexedAt: keep ? old.indexedAt : undefined,
       breaks: keep ? old.breaks : undefined,
+      locale: keep ? old.locale : undefined,
       pdf: keep ? old.pdf : undefined,
       state: prefs.paused
         ? "metadata-only"
@@ -351,7 +369,7 @@ async function indexTab(id: number) {
     });
     const data = result[0]?.result;
     if (!data || typeof data.text !== "string")
-      throw Error("Unsupported extraction");
+      throw Error(t("unsupported_extraction"));
     if (data.pdf) {
       await startPDF(id, url, generation);
       return;
@@ -398,6 +416,7 @@ async function indexTab(id: number) {
       title: current.title ?? url,
       text,
       breaks: data.breaks,
+      locale: localeHint(data.locale),
       updated:
         previous?.url === url &&
         previous.text === text &&
@@ -541,7 +560,7 @@ async function bounded<T>(work: Promise<T>, ms = 1800): Promise<T> {
     return await Promise.race([
       work,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(Error("UI unavailable")), ms);
+        timer = setTimeout(() => reject(Error(t("ui_unavailable"))), ms);
       }),
     ]);
   } finally {
@@ -697,7 +716,7 @@ function readFilters(
 ): SearchFilters {
   if (value === undefined) return {};
   if (!value || typeof value !== "object" || Array.isArray(value))
-    throw Error("Invalid filters");
+    throw Error(t("invalid_filters"));
   const f = value as Record<string, unknown>;
   if (
     (f.pageText !== undefined && typeof f.pageText !== "boolean") ||
@@ -706,7 +725,7 @@ function readFilters(
     (f.domain !== undefined &&
       (typeof f.domain !== "string" || f.domain.length > 253))
   )
-    throw Error("Invalid filters");
+    throw Error(t("invalid_filters"));
   const sourceWindow = new URL(sender.url!).searchParams.get("window");
   const fallbackOrigin =
     sender.tab?.windowId === popup ? fallbackSource : undefined;
@@ -795,6 +814,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         return false;
       const info = m.info as PDFInfo;
       if (
+        (info.replacementCharacters !== undefined &&
+          typeof info.replacementCharacters !== "boolean") ||
         !Array.isArray(info.pages) ||
         info.pages.length > 40 ||
         !Number.isInteger(info.total) ||
@@ -845,7 +866,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         coverage: m.done
           ? !info.textPages
             ? "empty"
-            : info.truncated ||
+            : info.replacementCharacters ||
+                info.truncated ||
                 info.searched < info.total ||
                 info.textPages < info.searched
               ? "partial"
@@ -923,7 +945,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
     return;
   }
   if (!uiSender(sender)) {
-    reply({ error: "Unauthorized request" });
+    reply({ error: t("unauthorized_request") });
     return;
   }
   if (m.type === "clear" || m.type === "save")
@@ -933,7 +955,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
     switch (m.type) {
       case "search": {
         if (typeof m.query !== "string" || m.query.length > 500)
-          throw Error("Invalid query");
+          throw Error(t("invalid_query"));
         await reconcile();
         const filters = readFilters(m.filters, sender);
         return {
@@ -971,7 +993,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
             (x) => typeof x === "string" && normalizeHost(x) === x,
           )
         )
-          throw Error("Use hostnames only, for example example.com");
+          throw Error(t("use_hostnames_only_for_example_example_com"));
         prefs = {
           ...prefs,
           theme: m.theme as Preferences["theme"],
@@ -1004,16 +1026,16 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
           !Number.isInteger(m.id) ||
           !["retry", "load", "include"].includes(String(m.action))
         )
-          throw Error("Invalid recovery");
+          throw Error(t("invalid_recovery"));
         const id = m.id as number;
         await reconcile();
         const r = records.get(id);
         if (!r || r.url !== m.url)
-          throw Error("That page changed. Search again.");
-        if (prefs.paused) throw Error("Resume indexing first.");
+          throw Error(t("that_page_changed_search_again"));
+        if (prefs.paused) throw Error(t("resume_indexing_first"));
         if (m.action === "include") {
           if (r.coverage !== "excluded")
-            throw Error("This site is already included.");
+            throw Error(t("this_site_is_already_included"));
           prefs.exclusions = prefs.exclusions.filter(
             (host) => !excluded(r.url, [host]),
           );
@@ -1022,16 +1044,16 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
           await reconcile();
         } else if (m.action === "load") {
           if (r.coverage !== "sleeping")
-            throw Error("This tab is already loaded.");
+            throw Error(t("this_tab_is_already_loaded"));
           await chrome.windows.update(r.windowId, { focused: true });
           await chrome.tabs.update(id, { active: true });
           return true; // onUpdated schedules extraction after loading.
         } else if (!["failure", "budget", "stale"].includes(r.coverage ?? ""))
-          throw Error("Retry is unavailable for this tab.");
+          throw Error(t("retry_is_unavailable_for_this_tab"));
         if (excluded(r.url, prefs.exclusions) || !(await allowed(r.url)))
-          throw Error("Website access is required.");
+          throw Error(t("website_access_is_required"));
         if (Date.now() - (retries.get(id) ?? 0) < 30_000)
-          throw Error("Please wait before retrying this tab.");
+          throw Error(t("please_wait_before_retrying_this_tab"));
         retries.set(id, Date.now());
         schedule(id);
         return true;
@@ -1060,17 +1082,17 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
           (m.passageId !== undefined &&
             (typeof m.passageId !== "string" || m.passageId.length > 100))
         )
-          throw Error("Invalid selection");
+          throw Error(t("invalid_selection"));
         const id = m.id as number;
         const r = records.get(id);
-        if (!r) throw Error("That tab is no longer open. Search again.");
+        if (!r) throw Error(t("that_tab_is_no_longer_open_search_again"));
         let tab: chrome.tabs.Tab;
         try {
           tab = await chrome.tabs.get(id);
         } catch {
           records.delete(id);
           await persist();
-          throw Error("That tab has closed. Search again.");
+          throw Error(t("that_tab_has_closed_search_again"));
         }
         const changed =
           tab.url !== r.url ||
@@ -1081,7 +1103,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         if (changed) {
           await destinationNotice(
             id,
-            "Tab opened. The original passage could not be located because the page changed.",
+            t("tab_opened_the_original_passage_could_not_be_located"),
           );
           return { activated: true };
         }
@@ -1096,7 +1118,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
         if (m.passageId !== undefined && !target) {
           await destinationNotice(
             id,
-            "This page changed. The passage could not be located.",
+            t("this_page_changed_the_passage_could_not_be_located"),
           );
           return { activated: true, highlighted: false };
         }
@@ -1106,7 +1128,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
             excluded(r.url, prefs.exclusions) ||
             !(await allowed(r.url))
           )
-            throw Error("Website access is required.");
+            throw Error(t("website_access_is_required"));
           const nextURL = pdfPageURL(tab.url!, target.page);
           // Native viewer does not consistently apply fragment-only changes.
           // Reload the same tab at the new fragment; no duplicate reader tab.
@@ -1139,23 +1161,23 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
           if (hit?.passage && !found)
             await destinationNotice(
               id,
-              "Tab opened. The original passage could not be located on this page.",
+              t("tab_opened_the_original_passage_could_not_be_located_2"),
             );
           return { activated: true, highlighted: found === true };
         } catch {
           await destinationNotice(
             id,
-            "Tab opened. Passage highlighting is unavailable on this page.",
+            t("tab_opened_passage_highlighting_is_unavailable_on_this_page"),
           );
           return { activated: true };
         }
       }
       default:
-        throw Error("Unknown request");
+        throw Error(t("unknown_request"));
     }
   }).then(reply, (e) =>
     reply({
-      error: e instanceof Error ? e.message : "The request failed. Try again.",
+      error: e instanceof Error ? e.message : t("the_request_failed_try_again"),
     }),
   );
   return true;

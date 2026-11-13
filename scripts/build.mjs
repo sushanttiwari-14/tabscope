@@ -1,18 +1,19 @@
 import { createHash } from "node:crypto";
 import { build, context } from "esbuild";
-import { mkdir, copyFile, writeFile, readFile } from "node:fs/promises";
+import { mkdir, cp, copyFile, writeFile, readFile } from "node:fs/promises";
 await mkdir("dist", { recursive: true });
-const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
+
 await copyFile("manifest.json", "dist/manifest.json");
+await cp("_locales", "dist/_locales", { recursive: true });
 await copyFile("THIRD_PARTY_NOTICES.txt", "dist/THIRD_PARTY_NOTICES.txt");
 await writeFile(
   "dist/palette.html",
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${manifest.name}</title><link rel="stylesheet" href="palette.css"></head><body><script type="module" src="palette.js"></script></body></html>`,
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TabScope</title><link rel="stylesheet" href="palette.css"></head><body><script type="module" src="palette.js"></script></body></html>`,
 );
 // Overlay transparency is static HTML: no opaque canvas while JS starts.
 await writeFile(
   "dist/overlay.html",
-  `<!doctype html><html lang="en" class="overlay"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${manifest.name}</title><link rel="stylesheet" href="palette.css"></head><body class="overlay"><script type="module" src="palette.js"></script></body></html>`,
+  `<!doctype html><html lang="en" class="overlay"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TabScope</title><link rel="stylesheet" href="palette.css"></head><body class="overlay"><script type="module" src="palette.js"></script></body></html>`,
 );
 await writeFile(
   "dist/palette.css",
@@ -31,6 +32,11 @@ await writeFile(
 );
 const agentHash = createHash("sha256");
 for (const file of [
+  "src/i18n.ts",
+  "src/pdf-messages.ts",
+  "_locales/en/messages.json",
+  "src/analysis.ts",
+  "src/distance.ts",
   "src/content.ts",
   "src/extract.ts",
   "src/search.ts",
@@ -42,6 +48,7 @@ for (const file of [
   agentHash.update(await readFile(file));
 const opts = {
   define: {
+    __TABSCOPE_PRODUCTION__: "true",
     __TABSCOPE_AGENT_VERSION__: JSON.stringify(
       agentHash.digest("hex").slice(0, 16),
     ),

@@ -23,7 +23,7 @@ export interface SearchFilters {
   domain?: string;
   exactHost?: boolean;
 }
-export type MatchKind = "exact" | "prefix" | "variant" | "typo";
+export type MatchKind = "exact" | "relaxed" | "prefix" | "variant" | "typo";
 export interface Passage {
   id: string;
   start: number;
@@ -40,6 +40,7 @@ export interface Passage {
   pageOffset?: number;
 }
 export interface PDFInfo {
+  replacementCharacters?: boolean;
   truncated?: boolean;
   pages: { page: number; label?: string; start: number; end: number }[];
   total: number;
@@ -49,6 +50,7 @@ export interface PDFInfo {
   status: string;
 }
 export interface TabRecord {
+  locale?: string;
   breaks?: number[];
   pdf?: PDFInfo;
   coverage?: CoverageReason;
@@ -70,6 +72,14 @@ export interface TabRecord {
   truncated?: boolean;
 }
 export interface Hit {
+  urlExcerpt?: {
+    start: number;
+    end: number;
+    text: string;
+    ranges: { start: number; end: number }[];
+  };
+  titleRanges?: { start: number; end: number }[];
+  urlRanges?: { start: number; end: number }[];
   resultsCapped?: boolean;
   coverage?: CoverageReason;
   updated?: number;

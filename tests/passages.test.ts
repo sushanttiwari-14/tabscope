@@ -10,6 +10,7 @@ const record = (
 ): TabRecord => ({
   id,
   windowId: 1,
+  locale: "en",
   url: `https://example.test/${id}`,
   title: "Notes",
   text,

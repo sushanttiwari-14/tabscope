@@ -53,7 +53,7 @@ const server = createServer((req, res) => {
   }
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(
-    `<!doctype html><title>Repeated passages</title><body><header style="position:sticky;top:0;background:white;height:60px">Sticky header</header><div style="height:250px;overflow:auto"><p id="one">The café orbital <b>ceramic</b> engine is here.</p><p>${"spacer ".repeat(200)}</p><p id="two">The café orbital <b>ceramic</b> engine is here.</p><p>${"spacer ".repeat(200)}</p><p id="three">The café orbital <b>ceramic</b> engine is here.</p></div><p>We are running a configuration experiment.</p></body>`,
+    `<!doctype html><html lang="en"><title>Repeated passages</title><body><header style="position:sticky;top:0;background:white;height:60px">Sticky header</header><div style="height:250px;overflow:auto"><p id="one">The café orbital <b>ceramic</b> engine is here.</p><p>${"spacer ".repeat(200)}</p><p id="two">The café orbital <b>ceramic</b> engine is here.</p><p>${"spacer ".repeat(200)}</p><p id="three">The café orbital <b>ceramic</b> engine is here.</p></div><p>We are running a configuration experiment.</p></body>`,
   );
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -451,7 +451,7 @@ try {
     if (coverage.some((e) => e.detail?.includes("Scanned PDFs"))) break;
     await new Promise((r) => setTimeout(r, 50));
   }
-  assert.ok(coverage.some((e) => e.detail?.includes("Scanned PDFs")));
+  assert.ok(coverage.some((e) => e.detail?.includes("Scanned PDFs")), JSON.stringify(coverage));
   const bad = await context.newPage();
   await bad.goto(origin + "/bad.pdf").catch(() => {});
   await call({ type: "refresh" });

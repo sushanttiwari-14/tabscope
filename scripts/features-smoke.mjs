@@ -19,7 +19,7 @@ await writeFile(manifestPath, JSON.stringify(manifest));
 const server = createServer((req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(
-    `<!doctype html><title>${req.url === "/metadata" ? "Event horizon reference" : "Observatory notes"}</title><body><input id="prior"><nav>event menu</nav><p>${"navigation filler ".repeat(100)}</p><article>${req.url === "/metadata" ? "Unrelated body" : "The event <b>horizon</b> reveals a café and café boundary."}</article></body>`,
+    `<!doctype html><html lang="en"><title>${req.url === "/metadata" ? "Event horizon reference" : "Observatory notes"}</title><body><input id="prior"><nav>event menu</nav><p>${"navigation filler ".repeat(100)}</p><article>${req.url === "/metadata" ? "Unrelated body" : "The event <b>horizon</b> reveals a café and café boundary."}</article></body>`,
   );
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));

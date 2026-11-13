@@ -1,4 +1,5 @@
-import { wordSpans, tokenize } from "./search";
+import { t } from "./i18n";
+import { wordSpans, tokenize, relaxed } from "./analysis";
 import { extractReadable } from "./extract";
 import type { Passage } from "./types";
 import tokensCSS from "./styles/tokens.css";
@@ -107,7 +108,7 @@ if (own.__tabscopeAgent?.version !== version) {
     host.style.cssText = `all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;display:block!important;isolation:isolate!important;background:${backdrop}!important;backdrop-filter:blur(${backdropBlur})!important`;
     const shadow = host.attachShadow({ mode: "open" });
     const frame = document.createElement("iframe");
-    frame.title = "TabScope search";
+    frame.title = t("tabscope_search");
     frame.src =
       chrome.runtime.getURL("overlay.html") +
       `?invocation=${encodeURIComponent(invocation)}&window=${windowId}`;
@@ -249,7 +250,9 @@ if (own.__tabscopeAgent?.version !== version) {
     if (at < 0 || !len) return false;
     const terms = tokenize(query);
     const matches = wordSpans(combined.slice(at, at + len)).filter((w) =>
-      terms.some((t) => w.term.startsWith(t)),
+      terms.some(
+        (t) => w.term.startsWith(t) || w.relaxed.startsWith(relaxed(t)),
+      ),
     );
     if (evidence?.ranges.length) {
       const offset = evidence.ranges[0].start - evidence.start;
@@ -367,7 +370,7 @@ if (own.__tabscopeAgent?.version !== version) {
         "position:fixed;bottom:24px;left:24px;max-width:calc(100vw - 64px);padding:12px 16px;background:#24272d;color:#fff;border-radius:12px;z-index:2147483647;font:14px/1.5 system-ui;box-shadow:0 4px 24px #0004";
       note.textContent = m.text;
       const dismiss = document.createElement("button");
-      dismiss.textContent = "Dismiss";
+      dismiss.textContent = t("dismiss");
       dismiss.style.cssText =
         "margin-left:12px;color:inherit;background:transparent;border:1px solid currentColor;border-radius:4px;padding:4px";
       dismiss.onclick = () => note.remove();
@@ -483,7 +486,7 @@ if (own.__tabscopeAgent?.version !== version) {
           const nav = document.createElement("div");
           nav.id = "tabscope-match-navigator";
           nav.setAttribute("role", "region");
-          nav.setAttribute("aria-label", "Passage navigation");
+          nav.setAttribute("aria-label", t("passage_navigation"));
           nav.style.cssText =
             "position:fixed;bottom:16px;right:16px;max-width:calc(100vw - 32px);flex-wrap:wrap;z-index:2147483647;background:#24272d;color:white;border-radius:12px;padding:8px;display:flex;gap:8px;align-items:center;font:13px system-ui;box-shadow:0 4px 24px #0004";
           const control = (label: string, fn: () => void) => {
@@ -494,32 +497,35 @@ if (own.__tabscopeAgent?.version !== version) {
             b.onclick = fn;
             return b;
           };
-          const prev = control("Previous", () => {
+          const prev = control(t("previous"), () => {
             index--;
             show();
           });
           prev.disabled = index <= 0;
-          prev.title = "Previous match (←)";
+          prev.title = t("previous_match");
           prev.setAttribute("aria-keyshortcuts", "ArrowLeft");
-          const next = control("Next", () => {
+          const next = control(t("next"), () => {
             index++;
             show();
           });
           next.disabled = index >= matches.length - 1;
-          next.title = "Next match (→)";
+          next.title = t("next_match");
           next.setAttribute("aria-keyshortcuts", "ArrowRight");
           nav.append(
             prev,
             document.createTextNode(
-              `Match ${index + 1} of ${matches.length}${m.matchesCapped || seen.size > 2048 ? "+" : ""}`,
+              t("match_position", [
+                index + 1,
+                matches.length,
+                m.matchesCapped || seen.size > 2048 ? "+" : "",
+              ]),
             ),
             next,
             Object.assign(document.createElement("span"), {
               textContent: "← →",
-              title:
-                "Use Left and Right arrow keys to jump; click elsewhere to finish",
+              title: t("use_left_and_right_arrow_keys_to_jump_click"),
             }),
-            control("Dismiss", cleanupHighlight),
+            control(t("dismiss"), cleanupHighlight),
           );
           document.documentElement.append(nav);
           if (focused)
@@ -538,8 +544,9 @@ if (own.__tabscopeAgent?.version !== version) {
           note.setAttribute("role", "status");
           note.style.cssText =
             "position:fixed;bottom:16px;left:16px;background:#24272d;color:white;padding:12px;border-radius:12px;z-index:2147483647;font:13px system-ui";
-          note.textContent =
-            "This page changed. The passage could not be located.";
+          note.textContent = t(
+            "this_page_changed_the_passage_could_not_be_located",
+          );
           document.documentElement.append(note);
         }
         return found;
@@ -607,7 +614,7 @@ if (own.__tabscopeAgent?.version !== version) {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["hidden", "aria-hidden", "class", "style"],
+      attributeFilter: ["hidden", "aria-hidden", "class", "style", "lang"],
     });
   observe();
   window.addEventListener(

@@ -1,27 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "TabScope",
+  "name": "__MSG_extension_name__",
   "version": "0.1.0",
-  "description": "Find the passage you remember in your open tabs. Private, local, keyboard first.",
+  "description": "__MSG_extension_description__",
   "minimum_chrome_version": "120",
   "incognito": "not_allowed",
-  "permissions": [
-    "tabs",
-    "scripting",
-    "storage",
-    "activeTab",
-    "offscreen"
-  ],
-  "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
+  "permissions": ["tabs", "scripting", "storage", "activeTab", "offscreen"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Open TabScope"
+    "default_title": "__MSG_extension_action__"
   },
   "commands": {
     "open-search": {
@@ -29,7 +20,7 @@
         "default": "Ctrl+Shift+Space",
         "mac": "MacCtrl+Space"
       },
-      "description": "Search open tabs"
+      "description": "__MSG_extension_command__"
     }
   },
   "options_page": "palette.html",
@@ -41,13 +32,11 @@
         "palette.css",
         "overlay.html"
       ],
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ]
+      "matches": ["http://*/*", "https://*/*"]
     }
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
-  }
+  },
+  "default_locale": "en"
 }

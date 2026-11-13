@@ -111,8 +111,21 @@ export function extractReadable(mapNodes = false) {
     }
     text += separator + chunk;
   }
+  if (truncated && text.length && typeof Intl.Segmenter === "function") {
+    const clusters = new Intl.Segmenter("en", {
+      granularity: "grapheme",
+    }).segment(text);
+    // The last cluster may be incomplete because of the hard source cap.
+    const last = Array.from(clusters).at(-1);
+    if (last) text = text.slice(0, last.index);
+  }
+  if (truncated && typeof Intl.Segmenter !== "function") text = "";
   return {
     url: location.href,
+    locale:
+      document.documentElement.lang.length <= 64
+        ? document.documentElement.lang
+        : undefined,
     text,
     truncated,
     breaks,

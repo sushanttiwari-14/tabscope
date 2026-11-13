@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import {
   shouldExplainAccess,
   dismissAccessExplanation,
@@ -10,7 +11,8 @@ import {
   type SearchResponse,
   type Preferences,
 } from "./types";
-import { normalize, tokenize, snippet as sourceSnippet } from "./search";
+import { tokenize, displayText } from "./analysis";
+document.documentElement.dir = "ltr";
 const overlay =
   location.pathname.endsWith("/overlay.html") ||
   new URLSearchParams(location.search).has("overlay");
@@ -25,7 +27,8 @@ function el<K extends keyof HTMLElementTagNameMap>(
 ) {
   const e = document.createElement(tag);
   e.className = className;
-  e.textContent = text;
+  e.textContent = displayText(text);
+  if (["title", "snippet"].includes(className)) e.dir = "auto";
   return e;
 }
 function icon(name: "filters" | "settings" | "close" | "arrow") {
@@ -81,9 +84,9 @@ searchGlyph.append(lens, handle);
 logo.append(searchGlyph);
 logo.setAttribute("aria-hidden", "true");
 const input = el("input", "field");
-input.placeholder = "Search tabs…";
+input.placeholder = t("search_tabs");
 input.maxLength = 500;
-input.setAttribute("aria-label", "Search open tabs");
+input.setAttribute("aria-label", t("search_open_tabs"));
 input.setAttribute("role", "combobox");
 input.setAttribute("aria-autocomplete", "list");
 input.setAttribute("aria-controls", "results");
@@ -91,8 +94,8 @@ input.setAttribute("aria-expanded", "false");
 input.autocomplete = "off";
 input.spellcheck = false;
 const clearSearch = el("button", "icon-button clear-search");
-clearSearch.setAttribute("aria-label", "Clear search");
-clearSearch.title = "Clear search";
+clearSearch.setAttribute("aria-label", t("clear_search"));
+clearSearch.title = t("clear_search");
 clearSearch.hidden = true;
 clearSearch.append(icon("close"));
 clearSearch.onclick = () => {
@@ -103,18 +106,18 @@ clearSearch.onclick = () => {
   void update();
 };
 const exit = el("button", "close");
-exit.setAttribute("aria-label", "Close search");
+exit.setAttribute("aria-label", t("close_search"));
 exit.append(el("kbd", "", "esc"));
 top.append(logo, input, clearSearch, exit);
 const accessPrompt = el("section", "access-prompt");
 accessPrompt.hidden = true;
 accessPrompt.setAttribute("aria-labelledby", "access-heading");
-const accessHeading = el("strong", "", "Search inside your tabs");
+const accessHeading = el("strong", "", t("search_inside_your_tabs"));
 accessHeading.id = "access-heading";
 const accessActions = el("div", "actions");
 accessActions.append(
-  button("Allow all websites", chooseAllWebsites),
-  button("Titles & URLs only", async () => {
+  button(t("allow_all_websites"), chooseAllWebsites),
+  button(t("titles_urls_only"), async () => {
     await dismissAccessExplanation();
     hideAccessExplanation();
     input.focus();
@@ -124,24 +127,20 @@ accessActions.firstElementChild?.classList.add("primary");
 accessActions.lastElementChild?.classList.add("text-button");
 accessPrompt.append(
   accessHeading,
-  el(
-    "p",
-    "",
-    "Find words inside pages, too. Website access can include sensitive text. Everything stays on this device; you control access in Settings.",
-  ),
+  el("p", "", t("find_words_inside_pages_too_website_access_can_include")),
   accessActions,
 );
 const list = el("ul", "list");
 list.id = "results";
 list.setAttribute("role", "listbox");
-list.setAttribute("aria-label", "Matching tabs");
+list.setAttribute("aria-label", t("matching_tabs"));
 const passageControls = el("div", "passage-controls");
 passageControls.setAttribute("role", "group");
-passageControls.setAttribute("aria-label", "Selected tab passages");
+passageControls.setAttribute("aria-label", t("selected_tab_passages"));
 passageControls.hidden = true;
 const passageChoice = new Map<number, string>();
 let showRecent = false;
-const recentToggle = el("button", "quiet recent-toggle", "Recent tabs ↓");
+const recentToggle = el("button", "quiet recent-toggle", t("recent_tabs"));
 recentToggle.onclick = () => {
   showRecent = true;
   input.focus();
@@ -180,9 +179,9 @@ function syncPassages() {
     if (snippet) snippet.replaceChildren(passageExcerpt(current));
     syncPassages();
   };
-  const prev = button("Previous", async () => change(-1));
+  const prev = button(t("previous"), async () => change(-1));
   prev.disabled = index <= 0;
-  const next = button("Next", async () => change(1));
+  const next = button(t("next"), async () => change(1));
   next.disabled = index >= ps.length - 1;
   for (const b of [prev, next]) b.onpointerdown = (e) => e.preventDefault();
   passageControls.append(
@@ -190,7 +189,11 @@ function syncPassages() {
     el(
       "span",
       "",
-      `Passage ${index + 1} of ${ps.length}${h.passagesCapped ? "+" : ""}`,
+      t("passage_position", [
+        index + 1,
+        ps.length,
+        h.passagesCapped ? "+" : "",
+      ]),
     ),
     next,
   );
@@ -203,26 +206,25 @@ function syncPassages() {
 function passageExcerpt(h: Hit) {
   const frag = document.createDocumentFragment();
   const p = h.passage;
-  if (!p)
-    return highlighted(h.snippet, h.matchedTerms?.join(" ") ?? input.value);
-  let cursor = p.start;
-  for (const range of p.ranges) {
-    if (range.start < cursor) continue;
-    frag.append(
-      document.createTextNode(
-        p.text.slice(cursor - p.start, range.start - p.start),
-      ),
-      el("mark", "", p.text.slice(range.start - p.start, range.end - p.start)),
-    );
-    cursor = range.end;
-  }
-  frag.append(document.createTextNode(p.text.slice(cursor - p.start)));
+  if (!p) return highlighted(h.snippet);
+  if (p.start) frag.append(document.createTextNode("…"));
+  frag.append(
+    highlighted(
+      p.text,
+      p.ranges.map((r) => ({ start: r.start - p.start, end: r.end - p.start })),
+    ),
+  );
+  if (p.after) frag.append(document.createTextNode("…"));
   if (p.kind === "variant" || p.kind === "typo")
     frag.append(
       el(
         "span",
         "match-quality",
-        `${p.kind === "variant" ? "Similar wording" : "Close match"} · matched ‘${p.ranges.map((r) => p.text.slice(r.start - p.start, r.end - p.start)).join(" · ")}’`,
+        t(p.kind === "variant" ? "variant_evidence" : "typo_evidence", [
+          p.ranges
+            .map((r) => p.text.slice(r.start - p.start, r.end - p.start))
+            .join(" · "),
+        ]),
       ),
     );
   if (p.page)
@@ -230,7 +232,9 @@ function passageExcerpt(h: Hit) {
       el(
         "span",
         "match-quality",
-        `Opens page ${p.page}${p.pageLabel && p.pageLabel !== String(p.page) ? ` · label ${p.pageLabel}` : ""}`,
+        p.pageLabel && p.pageLabel !== String(p.page)
+          ? t("opens_page_label", [p.page, p.pageLabel])
+          : t("opens_page_number", [p.page]),
       ),
     );
   return frag;
@@ -242,12 +246,15 @@ const alert = el("div", "notice");
 alert.setAttribute("role", "alert");
 alert.hidden = true;
 const footer = el("footer");
-const coverage = el("button", "coverage quiet", "Reading open tabs…");
+const coverage = el("button", "coverage quiet", t("reading_open_tabs"));
 coverage.setAttribute("aria-expanded", "false");
 const coverageDetails = el("section", "coverage-details");
 coverageDetails.hidden = true;
 coverageDetails.id = "coverage-details";
-coverageDetails.setAttribute("aria-label", "Page text coverage and recovery");
+coverageDetails.setAttribute(
+  "aria-label",
+  t("page_text_coverage_and_recovery"),
+);
 coverage.setAttribute("aria-controls", coverageDetails.id);
 coverage.onclick = () => {
   coverageDetails.hidden = !coverageDetails.hidden;
@@ -258,14 +265,14 @@ coverage.onclick = () => {
   coverage.setAttribute("aria-expanded", String(!coverageDetails.hidden));
 };
 const filterBar = el("button", "icon-button filter-toggle");
-filterBar.setAttribute("aria-label", "Filters");
-filterBar.title = "Filter tabs";
+filterBar.setAttribute("aria-label", t("filters"));
+filterBar.title = t("filter_tabs");
 filterBar.setAttribute("aria-expanded", "false");
 filterBar.setAttribute("aria-controls", "filter-controls");
 filterBar.append(icon("filters"));
 const filterControls = el("section", "filter-controls");
 filterControls.id = "filter-controls";
-filterControls.setAttribute("aria-label", "Search filters");
+filterControls.setAttribute("aria-label", t("search_filters"));
 filterControls.hidden = true;
 filterBar.onclick = () => {
   filterControls.hidden = !filterControls.hidden;
@@ -277,9 +284,9 @@ filterBar.onclick = () => {
 };
 const activeChips = el("div", "active-filters");
 activeChips.hidden = true;
-activeChips.setAttribute("aria-label", "Active filters");
+activeChips.setAttribute("aria-label", t("active_filters"));
 const resultsHeader = el("div", "results-header");
-const resultsLabel = el("span", "", "Recent tabs");
+const resultsLabel = el("span", "", t("recent_tabs_2"));
 const resultsCount = el("span", "result-count");
 resultsHeader.append(resultsLabel, resultsCount);
 const windowFilter = el("input");
@@ -293,7 +300,7 @@ domainFilter.placeholder = "example.com";
 domainFilter.maxLength = 253;
 domainFilter.setAttribute(
   "aria-label",
-  "Website hostname (includes subdomains unless Exact host is selected)",
+  t("website_hostname_includes_subdomains_unless_exact_host_is_selected"),
 );
 function checkbox(input: HTMLInputElement, text: string) {
   const label = el("label", "filter-check");
@@ -307,10 +314,10 @@ function clearFilters() {
   void update();
 }
 filterControls.append(
-  checkbox(windowFilter, "This window"),
-  checkbox(bodyFilter, "Page text"),
+  checkbox(windowFilter, t("this_window")),
+  checkbox(bodyFilter, t("page_text")),
   domainFilter,
-  checkbox(exactFilter, "Exact host"),
+  checkbox(exactFilter, t("exact_host")),
 );
 top.insertBefore(filterBar, exit);
 const filters = () => ({
@@ -329,12 +336,12 @@ domainFilter.addEventListener("compositionend", () => {
   void update();
 });
 const hints = el("span", "hint");
-hints.append(el("kbd", "", "↑↓"), " select  ", el("kbd", "", "↵"), " jump");
+hints.append(el("kbd", "", "↑↓"), t("select"), el("kbd", "", "↵"), t("jump"));
 const settingsButton = el("button", "icon-button settings-toggle");
-settingsButton.setAttribute("aria-label", "Settings");
-settingsButton.title = "Settings";
+settingsButton.setAttribute("aria-label", t("settings"));
+settingsButton.title = t("settings");
 settingsButton.append(icon("settings"));
-const privacyNote = el("span", "local-note", "On this device");
+const privacyNote = el("span", "local-note", t("on_this_device"));
 privacyNote.hidden = true;
 const live = el("span", "sr");
 live.setAttribute("aria-live", "polite");
@@ -439,9 +446,7 @@ async function chooseAllWebsites() {
   const granted = await allowAllWebsites();
   hideAccessExplanation();
   if (!granted)
-    throw Error(
-      "Website access was not granted. Titles and URLs still work. You can change access in Settings.",
-    );
+    throw Error(t("website_access_was_not_granted_titles_and_urls_still"));
   alert.hidden = true;
   await request({ type: "refresh" });
   if (!inSettings) {
@@ -560,15 +565,37 @@ function select(index: number, scroll = true) {
         ?.scrollIntoView({ block: "nearest" });
   } else input.removeAttribute("aria-activedescendant");
 }
-function highlighted(text: string, query: string) {
+function highlighted(
+  text: string,
+  ranges: { start: number; end: number }[] = [],
+) {
   const frag = document.createDocumentFragment();
-  const terms = tokenize(query);
-  const segments = text.split(/([\p{L}\p{N}\p{M}]+)/u);
-  for (const s of segments) {
-    if (terms.some((t) => normalize(s).startsWith(t)))
-      frag.append(el("mark", "", s));
-    else frag.append(document.createTextNode(s));
+  const merged: { start: number; end: number }[] = [];
+  for (const range of [...ranges].sort(
+    (a, b) => a.start - b.start || b.end - a.end,
+  )) {
+    if (
+      !Number.isInteger(range.start) ||
+      !Number.isInteger(range.end) ||
+      range.start < 0 ||
+      range.end > text.length ||
+      range.end <= range.start
+    )
+      continue;
+    const previous = merged.at(-1);
+    if (previous && range.start <= previous.end)
+      previous.end = Math.max(previous.end, range.end);
+    else merged.push({ ...range });
   }
+  let cursor = 0;
+  for (const range of merged) {
+    frag.append(
+      document.createTextNode(displayText(text.slice(cursor, range.start))),
+      el("mark", "", text.slice(range.start, range.end)),
+    );
+    cursor = range.end;
+  }
+  frag.append(document.createTextNode(displayText(text.slice(cursor))));
   return frag;
 }
 async function activate() {
@@ -626,14 +653,14 @@ function render(response: SearchResponse) {
   const stateLabels: Record<Hit["state"], string> = {
     content: "",
     "metadata-only": "",
-    indexing: "Indexing",
-    unavailable: "Unavailable",
-    stale: "Stale text",
-    excluded: "Excluded",
+    indexing: t("indexing"),
+    unavailable: t("unavailable"),
+    stale: t("stale_text"),
+    excluded: t("excluded"),
   };
   for (const [i, h] of hits.entries()) {
     if (h.approximate && (i === 0 || !hits[i - 1].approximate)) {
-      const group = el("li", "approximate-heading", "Approximate matches");
+      const group = el("li", "approximate-heading", t("approximate_matches"));
       group.setAttribute("role", "presentation");
       list.append(group);
     }
@@ -650,49 +677,51 @@ function render(response: SearchResponse) {
     siteIcon.setAttribute("aria-hidden", "true");
     const copy = el("div", "copy");
     const title = el("div", "title");
-    title.title = h.title;
-    title.append(
-      highlighted(h.title, h.matchedTerms?.join(" ") ?? input.value),
-    );
+    title.title = displayText(h.title);
+    title.append(highlighted(h.title, h.titleRanges));
     const label = stateLabels[h.state];
     const meta = el(
       "div",
       "meta",
       [
         host,
-        h.approximate && !h.passage ? "Close match" : "",
+        h.approximate && !h.passage ? t("close_match") : "",
         label,
         h.truncated && (h.state === "content" || h.state === "stale")
-          ? "Partial text"
+          ? t("partial_text")
           : "",
       ]
         .filter(Boolean)
         .join(" · "),
     );
-    meta.title = h.url;
+    meta.title = displayText(h.url);
+    meta.dir = "ltr";
     copy.append(title, meta);
-    const evidenceTerms = h.matchedTerms ?? tokenize(input.value);
-    const titleWords = tokenize(h.title);
-    const titleExplains =
-      hasQuery &&
-      evidenceTerms.every((term) =>
-        titleWords.some((word) => word.startsWith(term)),
-      );
     const bodyEvidence = h.snippet;
-    const urlEvidence =
-      hasQuery && !bodyEvidence && !titleExplains
-        ? sourceSnippet(h.url, h.matchedTerms?.join(" ") ?? input.value)
-        : "";
-    if (hasQuery && (bodyEvidence || urlEvidence)) {
+    if (hasQuery && (bodyEvidence || h.urlRanges?.length)) {
       const snippet = el("p", "snippet");
-      snippet.append(
-        bodyEvidence
-          ? passageExcerpt(h)
-          : highlighted(
-              "URL · " + urlEvidence,
-              h.matchedTerms?.join(" ") ?? input.value,
+      if (bodyEvidence) snippet.append(passageExcerpt(h));
+      else {
+        const label = el("bdi", "", t("url"));
+        label.dir = "ltr";
+        const url = el("bdi");
+        url.dir = "ltr";
+        const excerpt = h.urlExcerpt;
+        if (excerpt) {
+          if (excerpt.start) url.append("…");
+          url.append(
+            highlighted(
+              excerpt.text,
+              excerpt.ranges.map((r) => ({
+                start: r.start - excerpt.start,
+                end: r.end - excerpt.start,
+              })),
             ),
-      );
+          );
+          if (excerpt.end < h.url.length) url.append("…");
+        } else url.append(highlighted(h.url, h.urlRanges));
+        snippet.append(label, url);
+      }
       copy.append(snippet);
     }
     const actionHint = el("span", "row-action");
@@ -715,22 +744,24 @@ function render(response: SearchResponse) {
       "strong",
       "",
       activeFilters()
-        ? "No tabs match these filters"
+        ? t("no_tabs_match_these_filters")
         : input.value
-          ? "No matching tabs"
-          : "No open tabs to search",
+          ? t("no_matching_tabs")
+          : t("no_open_tabs_to_search"),
     ),
     el(
       "span",
       "",
       input.value
-        ? "Try different words. Only permitted, loaded text is searched."
-        : "Open a website, then return here.",
+        ? t("try_different_words_only_permitted_loaded_text_is_searched")
+        : t("open_a_website_then_return_here"),
     ),
   );
   if (activeFilters())
-    state.append(button("Clear filters", async () => clearFilters()));
-  resultsLabel.textContent = hasQuery ? "Search results" : "Recent tabs";
+    state.append(button(t("clear_filters"), async () => clearFilters()));
+  resultsLabel.textContent = hasQuery
+    ? t("search_results")
+    : t("recent_tabs_2");
   resultsCount.textContent =
     String(hits.length) + (hits.some((h) => h.resultsCapped) ? "+" : "");
   resultsHeader.hidden = !hits.length;
@@ -747,29 +778,31 @@ function render(response: SearchResponse) {
         await update();
       });
       chip.className = "filter-chip";
-      chip.setAttribute("aria-label", "Remove " + label + " filter");
+      chip.setAttribute("aria-label", t("remove_filter", [label]));
       chip.append(icon("close"));
       activeChips.append(chip);
     };
     if (windowFilter.checked)
-      addChip("This window", () => {
+      addChip(t("this_window"), () => {
         windowFilter.checked = false;
       });
     if (bodyFilter.checked)
-      addChip("Page text", () => {
+      addChip(t("page_text"), () => {
         bodyFilter.checked = false;
       });
     if (domainFilter.value.trim())
       addChip(
         domainFilter.value.trim() +
-          (exactFilter.checked ? " · exact" : " + subdomains"),
+          (exactFilter.checked
+            ? t("exact_host_suffix")
+            : t("subdomains_suffix")),
         () => {
           domainFilter.value = "";
           exactFilter.checked = false;
         },
       );
     if (activeFilters()) {
-      const clear = button("Clear filters", async () => clearFilters());
+      const clear = button(t("clear_filters"), async () => clearFilters());
       clear.className = "clear-filters quiet";
       activeChips.append(clear);
     }
@@ -791,10 +824,10 @@ function render(response: SearchResponse) {
       coverage.focus();
     });
     closeCoverage.className = "icon-button";
-    closeCoverage.setAttribute("aria-label", "Close coverage details");
+    closeCoverage.setAttribute("aria-label", t("close_coverage_details"));
     closeCoverage.append(icon("close"));
     coverageHeading.append(
-      el("strong", "", "Page text coverage"),
+      el("strong", "", t("page_text_coverage")),
       closeCoverage,
     );
     coverageDetails.replaceChildren(
@@ -802,22 +835,22 @@ function render(response: SearchResponse) {
       el(
         "p",
         "",
-        "Only loaded, permitted page text is searched. Unloaded sections, frames, images are not included. Supported PDFs are fetched and parsed locally.",
+        t("only_loaded_permitted_page_text_is_searched_unloaded_sections"),
       ),
     );
     const descriptions = {
-      permission: "Website access missing or withheld",
-      excluded: "Excluded by you",
-      sleeping: "Sleeping tab",
-      restricted: "Browser-restricted or unsupported page",
-      indexing: "Indexing in progress",
-      failure: "Text extraction failed or is unsupported",
-      stale: "Previously indexed text may be out of date",
-      budget: "Text removed to keep the local index bounded",
-      partial: "Partial text — page extraction limit reached",
-      paused: "Indexing paused",
-      ready: "Page text searchable",
-      empty: "No readable page text found",
+      permission: t("website_access_missing_or_withheld"),
+      excluded: t("excluded_by_you"),
+      sleeping: t("sleeping_tab"),
+      restricted: t("browser_restricted_or_unsupported_page"),
+      indexing: t("indexing_in_progress"),
+      failure: t("text_extraction_failed_or_is_unsupported"),
+      stale: t("previously_indexed_text_may_be_out_of_date"),
+      budget: t("text_removed_to_keep_the_local_index_bounded"),
+      partial: t("partial_text_page_extraction_limit_reached"),
+      paused: t("indexing_paused"),
+      ready: t("page_text_searchable"),
+      empty: t("no_readable_page_text_found"),
     };
     const entries = response.coverage ?? [];
     const summary = new Map<string, number>();
@@ -828,14 +861,17 @@ function render(response: SearchResponse) {
       const pill = el(
         "span",
         "coverage-count",
-        `${count} ${descriptions[reason as keyof typeof descriptions]}`,
+        t("coverage_reason_count", [
+          count,
+          descriptions[reason as keyof typeof descriptions],
+        ]),
       );
       coverageCounts.append(pill);
     }
     coverageDetails.append(coverageCounts);
     if (response.paused)
       coverageDetails.append(
-        button("Resume indexing", async () => {
+        button(t("resume_indexing"), async () => {
           await request({ type: "resume" });
           await update();
         }),
@@ -863,51 +899,61 @@ function render(response: SearchResponse) {
       };
       if (entry.reason === "permission")
         row.append(
-          button("Allow this site", async () => {
+          button(t("allow_this_site"), async () => {
             const u = new URL(entry.url);
             const granted = await chrome.permissions.request({
               origins: [u.protocol + "//" + u.hostname + "/*"],
             });
             if (!granted)
               throw Error(
-                "Access was not granted. Titles and URLs still work.",
+                t("access_was_not_granted_titles_and_urls_still_work"),
               );
             await request({ type: "refresh" });
             await update();
           }),
         );
       if (entry.reason === "excluded")
-        row.append(button("Include this site", async () => recover("include")));
+        row.append(
+          button(t("include_this_site"), async () => recover("include")),
+        );
       if (entry.reason === "sleeping")
         row.append(
-          button("Load and search this tab", async () => {
+          button(t("load_and_search_this_tab"), async () => {
             await recover("load");
             await close();
           }),
         );
       if (["failure", "budget", "stale"].includes(entry.reason))
-        row.append(button("Retry page text", async () => recover("retry")));
+        row.append(button(t("retry_page_text"), async () => recover("retry")));
       coverageDetails.append(row);
     }
     if (entries.filter((e) => e.reason !== "ready").length > 100)
       coverageDetails.append(
-        el(
-          "p",
-          "",
-          "Showing the first 100 tabs needing attention. Use the window or website filters to narrow the list.",
-        ),
+        el("p", "", t("showing_the_first_100_tabs_needing_attention_use_the")),
       );
     if (restoreCoverageFocus) coverage.focus();
   }
   coverage.textContent = response.paused
-    ? "Indexing paused"
-    : `Page text · ${response.searchable} of ${response.total} tabs${response.indexing ? " · Indexing…" : ""}`;
+    ? t("indexing_paused")
+    : t(response.indexing ? "page_coverage_indexing" : "page_coverage", [
+        response.searchable,
+        response.total,
+      ]);
   coverage.dataset.status = response.paused
     ? "paused"
     : response.searchable === response.total && response.total > 0
       ? "ready"
       : "partial";
-  const announcement = `${hits.length} ${hits[0]?.approximate ? "close matches" : "results"}.`;
+  const announcement = t(
+    hits[0]?.approximate
+      ? hits.length === 1
+        ? "close_result_one"
+        : "close_result_other"
+      : hits.length === 1
+        ? "result_one"
+        : "result_other",
+    [hits.length],
+  );
   if (live.textContent !== announcement) live.textContent = announcement;
   document.documentElement.dataset.theme = response.theme;
   const expanded = syncSearchVisibility();
@@ -927,7 +973,7 @@ async function update() {
     renderedQuery !== input.value ||
     renderedFilters !== JSON.stringify(filters())
   ) {
-    resultsLabel.textContent = "Searching…";
+    resultsLabel.textContent = t("searching");
     list.setAttribute("aria-busy", "true");
   }
   try {
@@ -940,7 +986,7 @@ async function update() {
   } catch (e) {
     if (version === sequence) {
       list.removeAttribute("aria-busy");
-      resultsLabel.textContent = "Search unavailable";
+      resultsLabel.textContent = t("search_unavailable");
       error(e);
     }
   }
@@ -1023,9 +1069,9 @@ async function showSettings() {
   settings.replaceChildren();
   try {
     const p = await request<Preferences>({ type: "settings" });
-    const back = button("← Back to search", async () => showSearch());
+    const back = button(t("back_to_search"), async () => showSearch());
     back.className = "back";
-    settings.append(back, el("h2", "", "Settings"));
+    settings.append(back, el("h2", "", t("settings")));
     const feedback = el("div", "settings-feedback");
     feedback.setAttribute("role", "status");
     const confirm = (message: string) => {
@@ -1038,13 +1084,23 @@ async function showSettings() {
       return section;
     }
     const appearance = el("div", "settings-group setting-row");
-    const themeLabel = el("label", "", "Appearance");
+    const themeLabel = el("label", "", t("appearance"));
     themeLabel.htmlFor = "theme";
     const theme = el("select");
     theme.id = "theme";
-    for (const t of ["system", "light", "dark"]) {
-      const option = el("option", "", t[0].toUpperCase() + t.slice(1));
-      option.value = t;
+    for (const themeValue of ["system", "light", "dark"]) {
+      const option = el(
+        "option",
+        "",
+        (
+          {
+            system: t("theme_system"),
+            light: t("theme_light"),
+            dark: t("theme_dark"),
+          } as Record<string, string>
+        )[themeValue],
+      );
+      option.value = themeValue;
       theme.append(option);
     }
     theme.value = p.theme;
@@ -1057,7 +1113,7 @@ async function showSettings() {
         });
         p.theme = saved.theme;
         document.documentElement.dataset.theme = saved.theme;
-        confirm("Appearance updated.");
+        confirm(t("appearance_updated"));
       })().catch(error);
     };
     appearance.append(themeLabel, theme);
@@ -1073,82 +1129,78 @@ async function showSettings() {
     const shortcutRow = el("div", "setting-row");
     const shortcutActions = el("div", "shortcut-actions");
     shortcutActions.append(
-      el("kbd", "shortcut-key", shortcut || "Not assigned"),
-      button(shortcut ? "Change" : "Set shortcut", async () => {
+      el("kbd", "shortcut-key", shortcut || t("not_assigned")),
+      button(shortcut ? t("change") : t("set_shortcut"), async () => {
         await chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
       }),
     );
-    shortcutRow.append(el("span", "", "Keyboard shortcut"), shortcutActions);
+    shortcutRow.append(el("span", "", t("keyboard_shortcut")), shortcutActions);
     shortcutCard.append(shortcutRow);
     if (!shortcut)
       shortcutCard.append(
-        el("p", "", "Choose a shortcut to open search from any Chrome tab."),
+        el("p", "", t("choose_a_shortcut_to_open_search_from_any_chrome")),
       );
     const shortcutHelp = el("details", "shortcut-help");
     shortcutHelp.append(
-      el("summary", "", "Shortcut help"),
-      el(
-        "p",
-        "",
-        "Suggested: Control+Space on Mac; Ctrl+Shift+Space on Windows. Set Search open tabs for this copy of TabScope. macOS can reserve Control+Space for input sources; choose another combination if needed.",
-      ),
+      el("summary", "", t("shortcut_help")),
+      el("p", "", t("suggested_control_space_on_mac_ctrl_shift_space_on")),
     );
     shortcutCard.append(shortcutHelp);
     settings.append(shortcutCard);
 
     const website = group(
-      "Website access",
-      "Optional access lets you search readable page text, which can include sensitive information. Titles and URLs always work. Everything stays on this device.",
+      t("website_access"),
+      t("optional_access_lets_you_search_readable_page_text_which"),
     );
     const origin = el("input");
     origin.id = "site-access";
     origin.placeholder = "example.com";
-    origin.setAttribute("aria-label", "Website hostname for access");
+    origin.setAttribute("aria-label", t("website_hostname_for_access"));
     const access = el("div", "actions");
     access.append(
-      button("Allow this site", async () => {
+      button(t("allow_this_site"), async () => {
         const host = normalizeHost(origin.value.trim());
-        if (!host) throw Error("Enter a hostname, for example example.com");
+        if (!host) throw Error(t("enter_a_hostname_for_example_example_com"));
         const granted = await chrome.permissions.request({
           origins: ["https://" + host + "/*", "http://" + host + "/*"],
         });
         if (!granted)
-          throw Error("Access was not granted. Titles and URLs still work.");
+          throw Error(t("access_was_not_granted_titles_and_urls_still_work"));
         await request({ type: "refresh" });
-        confirm("Website access updated.");
+        confirm(t("website_access_updated"));
       }),
-      button("Allow all websites", async () => {
+      button(t("allow_all_websites"), async () => {
         await chooseAllWebsites();
-        confirm("Website access updated.");
+        confirm(t("website_access_updated"));
       }),
-      button("Revoke website access", async () => {
+      button(t("revoke_website_access"), async () => {
         const all = await chrome.permissions.getAll();
         if (all.origins?.length)
           await chrome.permissions.remove({ origins: all.origins });
         await request({ type: "refresh" });
-        confirm("Website access removed. Titles and URLs still work.");
+        confirm(t("website_access_removed_titles_and_urls_still_work"));
       }),
     );
     website.append(origin, access);
 
     const excludedSites = group(
-      "Excluded sites",
-      "Keep selected sites out of page-text search. One hostname per line; subdomains are included. Saving removes their indexed text.",
+      t("excluded_sites"),
+      t("keep_selected_sites_out_of_page_text_search_one"),
     );
     const exclusions = el("textarea");
     exclusions.id = "exclusions";
     exclusions.value = p.exclusions.join("\n");
-    exclusions.setAttribute("aria-label", "Excluded sites");
+    exclusions.setAttribute("aria-label", t("excluded_sites"));
     excludedSites.append(
       exclusions,
-      button("Save excluded sites", async () => {
+      button(t("save_excluded_sites"), async () => {
         const hosts = exclusions.value
           .split(/\n/)
           .map((s) => s.trim())
           .filter(Boolean)
           .map(normalizeHost);
         if (hosts.some((h) => !h))
-          throw Error("Use hostnames only, without paths or wildcards.");
+          throw Error(t("use_hostnames_only_without_paths_or_wildcards"));
         const saved = await request<Preferences>({
           type: "save",
           theme: p.theme,
@@ -1156,28 +1208,28 @@ async function showSettings() {
         });
         p.exclusions = saved.exclusions;
         alert.hidden = true;
-        confirm("Excluded sites saved.");
+        confirm(t("excluded_sites_saved"));
       }),
     );
 
     const local = group(
-      "Local data",
-      "Page text is kept for this browser session. Clearing removes text and pauses indexing. Your preferences stay saved.",
+      t("local_data"),
+      t("page_text_is_kept_for_this_browser_session_clearing"),
     );
     const data = el("div", "actions");
-    const clear = button("Clear data & pause", async () => {
+    const clear = button(t("clear_data_pause"), async () => {
       await request({ type: "clear" });
-      coverage.textContent = "Indexing paused";
+      coverage.textContent = t("indexing_paused");
       alert.hidden = true;
-      confirm("Page text cleared. Indexing is paused.");
+      confirm(t("page_text_cleared_indexing_is_paused"));
     });
     clear.className = "danger";
     data.append(
       clear,
-      button("Resume indexing", async () => {
+      button(t("resume_indexing"), async () => {
         await request({ type: "resume" });
         coverage.textContent = "Indexing…";
-        confirm("Indexing resumed.");
+        confirm(t("indexing_resumed"));
       }),
     );
     local.append(data);
@@ -1185,7 +1237,7 @@ async function showSettings() {
       el(
         "p",
         "settings-limit",
-        "Only loaded, permitted page text is searched. Frames, images and unloaded content aren't included. Supported PDFs open at the matching page.",
+        t("only_loaded_permitted_page_text_is_searched_frames_images"),
       ),
     );
     settings.append(feedback);

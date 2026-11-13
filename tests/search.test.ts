@@ -10,6 +10,7 @@ import {
 const record = (id: number, text: string, title = "Untitled"): TabRecord => ({
   id,
   windowId: 1,
+  locale: "en",
   url: `https://example.com/${id}`,
   title,
   text,
@@ -28,8 +29,8 @@ describe("search", () => {
     expect(s.search("ceramic orbital").map((h) => h.id)).toEqual([1]);
     expect(s.search("ceram orbit").map((h) => h.id)).toEqual([1]);
   });
-  it("folds diacritics/case and breaks equal scores deterministically", () => {
-    expect(normalize("CAFÉ")).toBe("cafe");
+  it("separates canonical case normalization from accent aliases and breaks equal scores deterministically", () => {
+    expect(normalize("CAFÉ")).toBe("café");
     const s = new SearchIndex();
     s.rebuild(
       new Map([

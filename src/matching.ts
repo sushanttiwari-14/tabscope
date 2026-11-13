@@ -1,7 +1,21 @@
-import { wordSpans, tokenize, editDistance } from "./search";
+import {
+  wordSpans,
+  tokenize,
+  normalize,
+  relaxed,
+  noSpace,
+  runMatches,
+  englishPolicy,
+  prefixBoundary,
+} from "./analysis";
+import { editDistance } from "./distance";
 import type { MatchKind, Passage, TabRecord } from "./types";
 export interface Component {
   terms: string[];
+  source?: string;
+  gaps?: string[];
+  leading?: string;
+  trailing?: string;
   phrase: boolean;
   allowApprox?: boolean;
 }
@@ -11,13 +25,32 @@ export function parseQuery(query: string): Component[] | null {
   // An unmatched quote consumes the remainder as a literal phrase.
   for (const m of query.matchAll(/"([^"]*)(?:"|$)|([^"\s]+)/g)) {
     const phrase = m[1] !== undefined;
-    const terms = tokenize(m[1] ?? m[2]);
+    const source = (m[1] ?? m[2]).trim();
+    const spans = wordSpans(source);
+    const contiguous =
+      noSpace(source) && /^[\p{L}\p{M}\p{N}\u200c\u200d]+$/u.test(source);
+    const terms = contiguous ? [normalize(source)] : tokenize(source);
+    const gaps = spans
+      .slice(1)
+      .map((w, i) => source.slice(spans[i].end, w.start));
     if (terms.length)
       parts.push(
         ...(phrase
-          ? [{ terms, phrase }]
+          ? [
+              {
+                terms,
+                phrase,
+                source,
+                gaps,
+                leading: source.slice(0, spans[0].start),
+                trailing: source.slice(spans.at(-1)!.end),
+              },
+            ]
           : terms.map((t) => ({
               terms: [t],
+              source: contiguous
+                ? source
+                : spans.find((w) => w.term === t)?.source,
               phrase: false,
               allowApprox: /^[a-z]+$/.test(m[2] ?? ""),
             }))),
@@ -25,7 +58,14 @@ export function parseQuery(query: string): Component[] | null {
   }
   const unique = [
     ...new Map(
-      parts.map((p) => [JSON.stringify([p.terms, p.phrase]), p]),
+      parts.map((p) => [
+        JSON.stringify([
+          p.terms,
+          p.phrase,
+          /[Iİ]/u.test(p.source ?? "") ? p.source : undefined,
+        ]),
+        p,
+      ]),
     ).values(),
   ];
   const distinct = [...new Set(unique.flatMap((p) => p.terms))];
@@ -48,7 +88,8 @@ export function root(term: string) {
   return term;
 }
 export const quality: Record<MatchKind, number> = {
-  exact: 4,
+  exact: 5,
+  relaxed: 4,
   prefix: 3,
   variant: 2,
   typo: 1,
@@ -57,11 +98,17 @@ export function wordKind(
   query: string,
   word: string,
   approximate: boolean,
+  locale?: string,
+  aliases = true,
 ): MatchKind | undefined {
   if (query === word) return "exact";
-  if (word.startsWith(query)) return "prefix";
+  if (aliases && relaxed(query, locale) === relaxed(word, locale))
+    return "relaxed";
+  if (word.startsWith(query) && prefixBoundary(word, query.length))
+    return "prefix";
   if (
     !approximate ||
+    !englishPolicy(locale) ||
     !/^[a-z]{4,40}$/.test(query) ||
     !/^[a-z]{3,42}$/.test(word)
   )
@@ -86,10 +133,16 @@ export function evidence(
       term: string;
     }[] = [];
     if (!component.phrase) {
+      if (noSpace(component.source ?? "")) {
+        for (const run of words.runs ?? [])
+          for (const range of runMatches(run, component.source!))
+            matches.push({ ...range, kind: "exact", term: component.terms[0] });
+        return matches.slice(0, 2000);
+      }
       const kinds = new Map<string, MatchKind | undefined>();
+      const q = normalize(component.source ?? component.terms[0], words.locale);
       for (const w of words) {
         if (w.end - w.start > 180) continue;
-        const q = component.terms[0];
         const kind = kinds.has(w.term)
           ? kinds.get(w.term)
           : wordKind(
@@ -97,28 +150,63 @@ export function evidence(
               w.term,
               approximate &&
                 component.allowApprox !== false &&
-                (!expansions || expansions.get(q)?.has(w.term) === true),
+                (!expansions ||
+                  expansions.get(component.terms[0])?.has(w.term) === true),
+              words.locale,
+              words.field !== "url",
             );
         kinds.set(w.term, kind);
         if (kind) matches.push({ ...w, kind });
         if (matches.length >= 2000) break;
       }
     } else {
+      const queryWords = wordSpans(component.source ?? "");
+      const canonical = component.terms.map((t, j) =>
+        normalize(queryWords[j]?.source ?? t, words.locale),
+      );
+      const aliases = component.terms.map((t, j) =>
+        relaxed(queryWords[j]?.source ?? t, words.locale),
+      );
+      const gaps = component.gaps?.map((gap) => gap.replace(/\s+/gu, " "));
+      if (component.source && noSpace(component.source)) {
+        for (const run of words.runs ?? [])
+          for (const range of runMatches(run, component.source))
+            if (!breaks.some((b) => b > range.start && b < range.end))
+              matches.push({ ...range, kind: "exact", term: component.source });
+        return matches.slice(0, 2000);
+      }
       for (let i = 0; i <= words.length - component.terms.length; i++) {
         const group = words.slice(i, i + component.terms.length);
+        const start = group[0].start - (component.leading?.length ?? 0);
+        const end = group.at(-1)!.end + (component.trailing?.length ?? 0);
         if (
-          group.at(-1)!.end - group[0].start <= 240 &&
+          start >= 0 &&
+          end <= text.length &&
+          end - start <= 240 &&
+          text.slice(
+            group[0].start - (component.leading?.length ?? 0),
+            group[0].start,
+          ) === (component.leading ?? "") &&
+          text.slice(
+            group.at(-1)!.end,
+            group.at(-1)!.end + (component.trailing?.length ?? 0),
+          ) === (component.trailing ?? "") &&
           group.every(
             (w, j) =>
-              w.term === component.terms[j] &&
-              (!j || /^\s+$/u.test(text.slice(group[j - 1].end, w.start))),
+              (w.term === canonical[j] ||
+                (words.field !== "url" && w.relaxed === aliases[j])) &&
+              (!j ||
+                text.slice(group[j - 1].end, w.start).replace(/\s+/gu, " ") ===
+                  (gaps?.[j - 1] ?? " ")),
           ) &&
-          !breaks.some((b) => b > group[0].start && b < group.at(-1)!.end)
+          !breaks.some((b) => b > start && b < end)
         )
           matches.push({
-            start: group[0].start,
-            end: group.at(-1)!.end,
-            kind: "exact",
+            start,
+            end,
+            kind: group.every((w, j) => w.term === canonical[j])
+              ? "exact"
+              : "relaxed",
             term: component.terms.join(" "),
           });
         if (matches.length >= 2000) break;
@@ -184,6 +272,8 @@ export function passages(
       end = Math.min(hi, m.end + 100, start + 240);
     start = starts[lowerBound(starts, start)] ?? m.start;
     end = ends[lowerBound(ends, end + 1) - 1] ?? m.end;
+    start = Math.min(start, m.start);
+    end = Math.max(end, m.end);
     const previous = windows.at(-1);
     if (
       previous &&
@@ -194,8 +284,11 @@ export function passages(
       previous.end = Math.max(previous.end, end);
     else windows.push({ start, end });
   }
+  const matchStarts = all.map((m) => m.start);
   const result: Passage[] = windows.map((w) => {
-    const matches = all.filter((m) => m.start >= w.start && m.end <= w.end);
+    const matches = all
+      .slice(lowerBound(matchStarts, w.start), lowerBound(matchStarts, w.end))
+      .filter((m) => m.end <= w.end);
     const best = groups.map((_, key) =>
       Math.max(
         0,

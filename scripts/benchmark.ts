@@ -20,6 +20,7 @@ for (const count of [5, 20, 50, 100, 150]) {
     records.set(i, {
       id: i,
       windowId: 1,
+      locale: "en",
       url: `https://example.test/${i}`,
       title: `Article ${i}`,
       text: (
@@ -86,6 +87,7 @@ for (const scenario of ["repeated-long", "typos", "pdf-pages"] as const) {
     records.set(id, {
       id,
       windowId: 1,
+      locale: "en",
       url: `https://fixture.test/${id}`,
       title: `Notes ${id}`,
       text,

@@ -235,3 +235,30 @@ it("respects PDF copy restrictions before extracting any page", async () => {
   );
   expect(messages).toHaveLength(0);
 });
+
+it("reports replacement characters as limited extraction while preserving original text", async () => {
+  documentFixture(["café \ufffd unknown"]);
+  await extract();
+  expect(messages.at(-1)!.text).toBe("café \ufffd unknown");
+  expect(messages.at(-1)!.info).toMatchObject({ replacementCharacters: true });
+  expect((messages.at(-1)!.info as { status: string }).status).toContain(
+    "replacement characters",
+  );
+});
+
+it("keeps PDF caps visible when grapheme-safe clipping ends below the numeric limit", async () => {
+  documentFixture(["a".repeat(PDF_LIMITS.text - 1) + "👩‍💻tail"]);
+  await extract();
+  expect(messages.at(-1)!.text).toBe("a".repeat(PDF_LIMITS.text - 1));
+  expect(messages.at(-1)!.info).toMatchObject({ truncated: true });
+  expect((messages.at(-1)!.info as { status: string }).status).toContain(
+    "text limit reached",
+  );
+  messages = [];
+  documentFixture(["a".repeat(PDF_LIMITS.text - 5), "👩‍💻tail"]);
+  await extract();
+  expect((messages.at(-1)!.text as string).length).toBeLessThan(
+    PDF_LIMITS.text,
+  );
+  expect(messages.at(-1)!.info).toMatchObject({ truncated: true });
+});

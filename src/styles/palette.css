@@ -877,3 +877,13 @@ footer {
   .list { max-height: none; overflow: visible; }
   .palette-body-content > * { flex-shrink: 0; }
 }
+
+/* Content direction is local to each region, never to result rows or controls. */
+.title, .snippet, .coverage-row > span { unicode-bidi: isolate; text-align: start; }
+.meta, .row-action, .site, kbd, .passage-controls, .results-header { direction: ltr; unicode-bidi: isolate; }
+.snippet bdi { overflow-wrap: anywhere; }
+.match-quality { direction: ltr; unicode-bidi: isolate; }
+/* Long translated labels wrap within the same English LTR settings flow. */
+.setting-row, .shortcut-actions { flex-wrap: wrap; }
+.shortcut-actions { flex-shrink: 1; max-inline-size: 100%; min-inline-size: 0; }
+.shortcut-actions button, .setting-row select { max-inline-size: 100%; }

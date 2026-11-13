@@ -1,9 +1,12 @@
+import { acceptPDFMessages } from "./pdf-messages";
+import { safeEnd } from "./analysis";
+import { t } from "./i18n";
 import {
   getDocument,
   GlobalWorkerOptions,
   PermissionFlag,
 } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { pdfPageText, PDF_LIMITS, type PDFTextItem } from "./pdf";
+import { pdfPageTextResult, PDF_LIMITS, type PDFTextItem } from "./pdf";
 import type { PDFInfo } from "./types";
 GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("pdf.worker.mjs");
 let active:
@@ -34,8 +37,9 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     typeof m.token !== "string"
   )
     return;
+  acceptPDFMessages(m.messages);
   if (active) {
-    reply({ error: "PDF parser busy. Retry shortly." });
+    reply({ error: t("pdf_parser_busy_retry_shortly") });
     return;
   }
   const job = {
@@ -58,19 +62,19 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       cache: "no-store",
     });
     if (!response.ok)
-      throw Error(`PDF could not be fetched (HTTP ${response.status}).`);
+      throw Error(t("pdf_could_not_be_fetched_http", [response.status]));
     if (/attachment/i.test(response.headers.get("content-disposition") ?? ""))
-      throw Error("Download-only PDFs cannot be searched safely.");
+      throw Error(t("download_only_pdfs_cannot_be_searched_safely"));
     if (
       !/^(application\/pdf|application\/octet-stream)(?:;|$)/i.test(
         response.headers.get("content-type") ?? "",
       )
     )
-      throw Error("The server did not return a PDF.");
+      throw Error(t("the_server_did_not_return_a_pdf"));
     if (Number(response.headers.get("content-length")) > PDF_LIMITS.bytes)
-      throw Error("PDF exceeds the 12 MB limit.");
+      throw Error(t("pdf_exceeds_the_12_mb_limit"));
     const reader = response.body?.getReader();
-    if (!reader) throw Error("Empty PDF response.");
+    if (!reader) throw Error(t("empty_pdf_response"));
     const chunks: Uint8Array[] = [];
     let bytes = 0;
     while (true) {
@@ -79,7 +83,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       bytes += value.length;
       if (bytes > PDF_LIMITS.bytes) {
         await reader.cancel();
-        throw Error("PDF exceeds the 12 MB limit.");
+        throw Error(t("pdf_exceeds_the_12_mb_limit"));
       }
       chunks.push(value);
     }
@@ -91,7 +95,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     }
     chunks.length = 0;
     if (!new TextDecoder().decode(data.slice(0, 1024)).includes("%PDF-"))
-      throw Error("The response is not a valid PDF.");
+      throw Error(t("the_response_is_not_a_valid_pdf"));
     const task = getDocument({
       data,
       useSystemFonts: false,
@@ -104,7 +108,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     const pdf = await task.promise;
     const permissions = await pdf.getPermissions();
     if (permissions && !permissions.has(PermissionFlag.COPY))
-      throw Error("This PDF does not allow text extraction.");
+      throw Error(t("this_pdf_does_not_allow_text_extraction"));
     const labels = await pdf.getPageLabels();
     const info: PDFInfo = {
       pages: [],
@@ -112,23 +116,28 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       searched: 0,
       textPages: 0,
       identity: pdf.fingerprints[0] ?? undefined,
-      status: "Indexing PDF…",
+      status: t("indexing_pdf"),
     };
     let text = "";
     for (let n = 1; n <= Math.min(pdf.numPages, PDF_LIMITS.pages); n++) {
       if (job.controller.signal.aborted)
-        throw Error("PDF indexing canceled or timed out.");
+        throw Error(t("pdf_indexing_canceled_or_timed_out"));
       const page = await pdf.getPage(n);
       const content = await page.getTextContent();
-      const pageText = pdfPageText(
+      const extracted = pdfPageTextResult(
         content.items.filter((x): x is PDFTextItem & typeof x => "str" in x),
       );
+      const pageText = extracted.text;
+      if (/[\ufffd\ud800-\udfff]/u.test(pageText))
+        info.replacementCharacters = true;
       if (text.length > PDF_LIMITS.text - 3) break;
       const separator = text ? "\n\f\n" : "";
       const start = text.length + separator.length;
-      text +=
-        separator + pageText.slice(0, Math.max(0, PDF_LIMITS.text - start));
+      const selected = safeEnd(pageText, Math.max(0, PDF_LIMITS.text - start));
+      text += separator + selected;
       if (
+        extracted.truncated ||
+        selected.length < pageText.length ||
         content.items.length > 20_000 ||
         pageText.length >= PDF_LIMITS.text ||
         text.length >= PDF_LIMITS.text
@@ -142,7 +151,10 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       });
       info.searched = n;
       if (pageText.trim()) info.textPages++;
-      info.status = `Searched ${n} of ${pdf.numPages} pages${info.textPages < n ? ` · ${n - info.textPages} pages without text` : ""}`;
+      info.status = t(
+        info.textPages < n ? "pdf_progress_missing" : "pdf_progress",
+        [n, pdf.numPages, n - info.textPages],
+      );
       const committed = await chrome.runtime.sendMessage({
         type: "pdf-progress",
         token: m.token,
@@ -150,14 +162,25 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
         info,
         done: false,
       });
-      if (committed !== true) throw Error("PDF indexing canceled.");
+      if (committed !== true) throw Error(t("pdf_indexing_canceled"));
       page.cleanup();
       if (text.length >= PDF_LIMITS.text) break;
     }
-    if (info.truncated) info.status += " · text limit reached";
+    if (info.truncated)
+      info.status = t("pdf_progress_limited", [
+        info.searched,
+        info.total,
+        info.searched - info.textPages,
+      ]);
     if (!info.textPages)
-      info.status =
-        "No searchable text found. Scanned PDFs are not supported yet.";
+      info.status = t(
+        "no_searchable_text_found_scanned_pdfs_are_not_supported",
+      );
+    if (info.replacementCharacters)
+      info.status = t("pdf_replacement_characters", [
+        info.searched,
+        info.total,
+      ]);
     await chrome.runtime.sendMessage({
       type: "pdf-progress",
       token: m.token,
@@ -178,12 +201,12 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       reply({
         error:
           e?.name === "PasswordException"
-            ? "Password-protected PDFs are not supported."
+            ? t("password_protected_pdfs_are_not_supported")
             : canceled
-              ? "PDF indexing canceled or timed out."
+              ? t("pdf_indexing_canceled_or_timed_out")
               : e instanceof Error
                 ? e.message
-                : "PDF extraction failed.",
+                : t("pdf_extraction_failed"),
       }),
     );
   return true;

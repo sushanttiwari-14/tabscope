@@ -1,0 +1,850 @@
+{
+  "search_tabs": {
+    "message": "Search tabs…",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "search_open_tabs": {
+    "message": "Search open tabs",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "clear_search": {
+    "message": "Clear search",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "close_search": {
+    "message": "Close search",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "search_inside_your_tabs": {
+    "message": "Search inside your tabs",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "allow_all_websites": {
+    "message": "Allow all websites",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "titles_urls_only": {
+    "message": "Titles & URLs only",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "find_words_inside_pages_too_website_access_can_include": {
+    "message": "Find words inside pages, too. Website access can include sensitive text. Everything stays on this device; you control access in Settings.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "matching_tabs": {
+    "message": "Matching tabs",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "selected_tab_passages": {
+    "message": "Selected tab passages",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "recent_tabs": {
+    "message": "Recent tabs ↓",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "previous": {
+    "message": "Previous",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "next": {
+    "message": "Next",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "reading_open_tabs": {
+    "message": "Reading open tabs…",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "page_text_coverage_and_recovery": {
+    "message": "Page text coverage and recovery",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "filters": {
+    "message": "Filters",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "filter_tabs": {
+    "message": "Filter tabs",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "search_filters": {
+    "message": "Search filters",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "active_filters": {
+    "message": "Active filters",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "recent_tabs_2": {
+    "message": "Recent tabs",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_hostname_includes_subdomains_unless_exact_host_is_selected": {
+    "message": "Website hostname (includes subdomains unless Exact host is selected)",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "this_window": {
+    "message": "This window",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "page_text": {
+    "message": "Page text",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "exact_host": {
+    "message": "Exact host",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "select": {
+    "message": " select  ",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "jump": {
+    "message": " jump",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "settings": {
+    "message": "Settings",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "on_this_device": {
+    "message": "On this device",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_access_was_not_granted_titles_and_urls_still": {
+    "message": "Website access was not granted. Titles and URLs still work. You can change access in Settings.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "indexing": {
+    "message": "Indexing",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "unavailable": {
+    "message": "Unavailable",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "stale_text": {
+    "message": "Stale text",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "excluded": {
+    "message": "Excluded",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "approximate_matches": {
+    "message": "Approximate matches",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "close_match": {
+    "message": "Close match",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "partial_text": {
+    "message": "Partial text",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "url": {
+    "message": "URL · ",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "no_tabs_match_these_filters": {
+    "message": "No tabs match these filters",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "no_matching_tabs": {
+    "message": "No matching tabs",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "no_open_tabs_to_search": {
+    "message": "No open tabs to search",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "try_different_words_only_permitted_loaded_text_is_searched": {
+    "message": "Try different words. Only permitted, loaded text is searched.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "open_a_website_then_return_here": {
+    "message": "Open a website, then return here.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "clear_filters": {
+    "message": "Clear filters",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "search_results": {
+    "message": "Search results",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "close_coverage_details": {
+    "message": "Close coverage details",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "page_text_coverage": {
+    "message": "Page text coverage",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "only_loaded_permitted_page_text_is_searched_unloaded_sections": {
+    "message": "Only loaded, permitted page text is searched. Unloaded sections, frames, images are not included. Supported PDFs are fetched and parsed locally.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_access_missing_or_withheld": {
+    "message": "Website access missing or withheld",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "excluded_by_you": {
+    "message": "Excluded by you",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "sleeping_tab": {
+    "message": "Sleeping tab",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "browser_restricted_or_unsupported_page": {
+    "message": "Browser-restricted or unsupported page",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "indexing_in_progress": {
+    "message": "Indexing in progress",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "text_extraction_failed_or_is_unsupported": {
+    "message": "Text extraction failed or is unsupported",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "previously_indexed_text_may_be_out_of_date": {
+    "message": "Previously indexed text may be out of date",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "text_removed_to_keep_the_local_index_bounded": {
+    "message": "Text removed to keep the local index bounded",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "partial_text_page_extraction_limit_reached": {
+    "message": "Partial text — page extraction limit reached",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "indexing_paused": {
+    "message": "Indexing paused",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "page_text_searchable": {
+    "message": "Page text searchable",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "no_readable_page_text_found": {
+    "message": "No readable page text found",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "resume_indexing": {
+    "message": "Resume indexing",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "allow_this_site": {
+    "message": "Allow this site",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "access_was_not_granted_titles_and_urls_still_work": {
+    "message": "Access was not granted. Titles and URLs still work.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "include_this_site": {
+    "message": "Include this site",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "load_and_search_this_tab": {
+    "message": "Load and search this tab",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "retry_page_text": {
+    "message": "Retry page text",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "showing_the_first_100_tabs_needing_attention_use_the": {
+    "message": "Showing the first 100 tabs needing attention. Use the window or website filters to narrow the list.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "searching": {
+    "message": "Searching…",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "search_unavailable": {
+    "message": "Search unavailable",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "back_to_search": {
+    "message": "← Back to search",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "appearance": {
+    "message": "Appearance",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "appearance_updated": {
+    "message": "Appearance updated.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "not_assigned": {
+    "message": "Not assigned",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "change": {
+    "message": "Change",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "set_shortcut": {
+    "message": "Set shortcut",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "keyboard_shortcut": {
+    "message": "Keyboard shortcut",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "choose_a_shortcut_to_open_search_from_any_chrome": {
+    "message": "Choose a shortcut to open search from any Chrome tab.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "shortcut_help": {
+    "message": "Shortcut help",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "suggested_control_space_on_mac_ctrl_shift_space_on": {
+    "message": "Suggested: Control+Space on Mac; Ctrl+Shift+Space on Windows. Set Search open tabs for this copy of TabScope. macOS can reserve Control+Space for input sources; choose another combination if needed.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_access": {
+    "message": "Website access",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "optional_access_lets_you_search_readable_page_text_which": {
+    "message": "Optional access lets you search readable page text, which can include sensitive information. Titles and URLs always work. Everything stays on this device.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_hostname_for_access": {
+    "message": "Website hostname for access",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "enter_a_hostname_for_example_example_com": {
+    "message": "Enter a hostname, for example example.com",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_access_updated": {
+    "message": "Website access updated.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "revoke_website_access": {
+    "message": "Revoke website access",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "website_access_removed_titles_and_urls_still_work": {
+    "message": "Website access removed. Titles and URLs still work.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "excluded_sites": {
+    "message": "Excluded sites",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "keep_selected_sites_out_of_page_text_search_one": {
+    "message": "Keep selected sites out of page-text search. One hostname per line; subdomains are included. Saving removes their indexed text.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "save_excluded_sites": {
+    "message": "Save excluded sites",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "use_hostnames_only_without_paths_or_wildcards": {
+    "message": "Use hostnames only, without paths or wildcards.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "excluded_sites_saved": {
+    "message": "Excluded sites saved.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "local_data": {
+    "message": "Local data",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "page_text_is_kept_for_this_browser_session_clearing": {
+    "message": "Page text is kept for this browser session. Clearing removes text and pauses indexing. Your preferences stay saved.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "clear_data_pause": {
+    "message": "Clear data & pause",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "page_text_cleared_indexing_is_paused": {
+    "message": "Page text cleared. Indexing is paused.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "indexing_resumed": {
+    "message": "Indexing resumed.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "only_loaded_permitted_page_text_is_searched_frames_images": {
+    "message": "Only loaded, permitted page text is searched. Frames, images and unloaded content aren't included. Supported PDFs open at the matching page.",
+    "description": "TabScope palette interface. Translate the whole message; retain placeholders."
+  },
+  "tabscope_search": {
+    "message": "TabScope search",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "dismiss": {
+    "message": "Dismiss",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "passage_navigation": {
+    "message": "Passage navigation",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "previous_match": {
+    "message": "Previous match (←)",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "next_match": {
+    "message": "Next match (→)",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "use_left_and_right_arrow_keys_to_jump_click": {
+    "message": "Use Left and Right arrow keys to jump; click elsewhere to finish",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "this_page_changed_the_passage_could_not_be_located": {
+    "message": "This page changed. The passage could not be located.",
+    "description": "TabScope content interface. Translate the whole message; retain placeholders."
+  },
+  "extract_permitted_pdfs_locally_with_a_bundled_pdf_js": {
+    "message": "Extract permitted PDFs locally with a bundled PDF.js worker",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_extraction_was_interrupted_retry_page_text": {
+    "message": "PDF extraction was interrupted. Retry page text.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "searched_of_pages_interrupted": {
+    "message": "Searched $value1$ of $value2$ pages · interrupted",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "value"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "value"
+      }
+    }
+  },
+  "unsupported_extraction": {
+    "message": "Unsupported extraction",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "ui_unavailable": {
+    "message": "UI unavailable",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "invalid_filters": {
+    "message": "Invalid filters",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "unauthorized_request": {
+    "message": "Unauthorized request",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "invalid_query": {
+    "message": "Invalid query",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "use_hostnames_only_for_example_example_com": {
+    "message": "Use hostnames only, for example example.com",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "invalid_recovery": {
+    "message": "Invalid recovery",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "that_page_changed_search_again": {
+    "message": "That page changed. Search again.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "resume_indexing_first": {
+    "message": "Resume indexing first.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "this_site_is_already_included": {
+    "message": "This site is already included.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "this_tab_is_already_loaded": {
+    "message": "This tab is already loaded.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "retry_is_unavailable_for_this_tab": {
+    "message": "Retry is unavailable for this tab.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "website_access_is_required": {
+    "message": "Website access is required.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "please_wait_before_retrying_this_tab": {
+    "message": "Please wait before retrying this tab.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "invalid_selection": {
+    "message": "Invalid selection",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "that_tab_is_no_longer_open_search_again": {
+    "message": "That tab is no longer open. Search again.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "that_tab_has_closed_search_again": {
+    "message": "That tab has closed. Search again.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "tab_opened_the_original_passage_could_not_be_located": {
+    "message": "Tab opened. The original passage could not be located because the page changed.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "tab_opened_the_original_passage_could_not_be_located_2": {
+    "message": "Tab opened. The original passage could not be located on this page.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "tab_opened_passage_highlighting_is_unavailable_on_this_page": {
+    "message": "Tab opened. Passage highlighting is unavailable on this page.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "unknown_request": {
+    "message": "Unknown request",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "the_request_failed_try_again": {
+    "message": "The request failed. Try again.",
+    "description": "TabScope background interface. Translate the whole message; retain placeholders."
+  },
+  "unsupported_pdf_destination": {
+    "message": "Unsupported PDF destination",
+    "description": "TabScope pdf interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_parser_busy_retry_shortly": {
+    "message": "PDF parser busy. Retry shortly.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_could_not_be_fetched_http": {
+    "message": "PDF could not be fetched (HTTP $value1$).",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "value"
+      }
+    }
+  },
+  "download_only_pdfs_cannot_be_searched_safely": {
+    "message": "Download-only PDFs cannot be searched safely.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "the_server_did_not_return_a_pdf": {
+    "message": "The server did not return a PDF.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_exceeds_the_12_mb_limit": {
+    "message": "PDF exceeds the 12 MB limit.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "empty_pdf_response": {
+    "message": "Empty PDF response.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "the_response_is_not_a_valid_pdf": {
+    "message": "The response is not a valid PDF.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "this_pdf_does_not_allow_text_extraction": {
+    "message": "This PDF does not allow text extraction.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "indexing_pdf": {
+    "message": "Indexing PDF…",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_indexing_canceled_or_timed_out": {
+    "message": "PDF indexing canceled or timed out.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_indexing_canceled": {
+    "message": "PDF indexing canceled.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "no_searchable_text_found_scanned_pdfs_are_not_supported": {
+    "message": "No searchable text found. Scanned PDFs are not supported yet.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "password_protected_pdfs_are_not_supported": {
+    "message": "Password-protected PDFs are not supported.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "pdf_extraction_failed": {
+    "message": "PDF extraction failed.",
+    "description": "TabScope pdf-offscreen interface. Translate the whole message; retain placeholders."
+  },
+  "extension_name": {
+    "message": "TabScope",
+    "description": "Extension manifest text shown by Chrome."
+  },
+  "extension_description": {
+    "message": "Find the passage you remember in your open tabs. Private, local, keyboard first.",
+    "description": "Extension manifest text shown by Chrome."
+  },
+  "extension_action": {
+    "message": "Open TabScope",
+    "description": "Extension manifest text shown by Chrome."
+  },
+  "extension_command": {
+    "message": "Search open tabs",
+    "description": "Extension manifest text shown by Chrome."
+  },
+  "remove_filter": {
+    "message": "Remove $value1$ filter",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "theme_system": {
+    "message": "System",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "theme_light": {
+    "message": "Light",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "theme_dark": {
+    "message": "Dark",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "opens_page_label": {
+    "message": "Opens page $value1$ · label $value2$",
+    "description": "PDF destination: physical page number value1; printed source label value2. The source label is user content.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "opens_page_number": {
+    "message": "Opens page $value1$",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "variant_evidence": {
+    "message": "Similar wording · matched ‘$value1$’",
+    "description": "English word-variant evidence: value1 is original matching source text. Do not translate the substituted text.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "typo_evidence": {
+    "message": "Close match · matched ‘$value1$’",
+    "description": "Typo recovery evidence: value1 is original matching source text. Do not translate the substituted text.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "exact_host_suffix": {
+    "message": " · exact",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "subdomains_suffix": {
+    "message": " + subdomains",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "page_coverage": {
+    "message": "Page text · $value1$ of $value2$ tabs",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "page_coverage_indexing": {
+    "message": "Page text · $value1$ of $value2$ tabs · Indexing…",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "result_one": {
+    "message": "1 result.",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "result_other": {
+    "message": "$value1$ results.",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "close_result_one": {
+    "message": "1 close match.",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories."
+  },
+  "close_result_other": {
+    "message": "$value1$ close matches.",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "pdf_progress": {
+    "message": "Searched $value1$ of $value2$ pages",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "pdf_progress_missing": {
+    "message": "Searched $value1$ of $value2$ pages · $value3$ pages without text",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "2"
+      },
+      "value3": {
+        "content": "$3",
+        "example": "2"
+      }
+    }
+  },
+  "pdf_progress_limited": {
+    "message": "Searched $value1$ of $value2$ pages · $value3$ pages without text · text limit reached",
+    "description": "Complete UI message. Count keys one/other are selected by count; future locales need their CLDR plural categories.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "2"
+      },
+      "value3": {
+        "content": "$3",
+        "example": "2"
+      }
+    }
+  },
+  "coverage_reason_count": {
+    "message": "$value1$ $value2$",
+    "description": "Coverage count label: value1 is tab count, value2 is an independently translated coverage reason.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "value"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "value"
+      }
+    }
+  },
+  "passage_position": {
+    "message": "Passage $value1$ of $value2$$value3$",
+    "description": "Palette preview position: value1 is one-based passage number, value2 is retained passage count, value3 is + when more passages exist.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "value"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "value"
+      },
+      "value3": {
+        "content": "$3",
+        "example": "value"
+      }
+    }
+  },
+  "match_position": {
+    "message": "Match $value1$ of $value2$$value3$",
+    "description": "Destination toolbar: value1 is one-based individual match, value2 is retained match count, value3 is + if capped.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "value"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "value"
+      },
+      "value3": {
+        "content": "$3",
+        "example": "value"
+      }
+    }
+  },
+  "pdf_replacement_characters": {
+    "message": "Searched $value1$ of $value2$ pages · PDF text contains replacement characters; some words may be unavailable.",
+    "description": "Limited PDF coverage: extraction contains U+FFFD or unpaired surrogates. value1 is searched physical pages; value2 is total physical pages.",
+    "placeholders": {
+      "value1": {
+        "content": "$1",
+        "example": "2"
+      },
+      "value2": {
+        "content": "$2",
+        "example": "5"
+      }
+    }
+  }
+}

@@ -523,3 +523,14 @@ it("reverses an in-flight dismissal without removing the reopened frame", async 
   Reflect.deleteProperty(HTMLElement.prototype, "animate");
   Reflect.deleteProperty(HTMLElement.prototype, "getAnimations");
 });
+
+it("requests reanalysis when the document language hint changes", async () => {
+  document.documentElement.lang = "tr";
+  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(5100);
+  expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+    type: "dirty",
+    url: location.href,
+  });
+  document.documentElement.lang = "";
+});

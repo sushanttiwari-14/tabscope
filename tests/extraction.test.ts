@@ -51,3 +51,12 @@ it("retains explicit line breaks across inline nodes", () => {
     "<p><span>connection</span><br><span>timeout</span></p>";
   expect(extractReadable().text).toBe("connection timeout");
 });
+
+it("collects bounded original language hints without turning overlong attributes into valid hints", () => {
+  document.body.textContent = "विज्ञान TabScope";
+  document.documentElement.lang = "hi-IN";
+  expect(extractReadable().locale).toBe("hi-IN");
+  document.documentElement.lang = "tr-" + "x".repeat(100);
+  expect(extractReadable().locale).toBeUndefined();
+  document.documentElement.lang = "";
+});
